@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TWO BRAINS, ONE PUZZLE</title>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <style>
+    :root {
+      --bg: #050505;
+      --panel: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.12);
+      --text: #f0f0f0;
+      --muted: #888;
+      --accent: #e0e0e0;
+      --danger: #ff4d4d;
+      --success: #4dff88;
+      --glass: rgba(20,20,20,0.85);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    .screen {
+      display: none;
+      width: 100%;
+      max-width: 420px;
+      flex-direction: column;
+      gap: 20px;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin-top: -8px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      backdrop-filter: blur(12px);
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 16px 20px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+      background: rgba(255,255,255,0.08);
+    }
+
+    .btn.primary {
+      background: #f5f5f5;
+      color: #111;
+      border-color: #f5f5f5;
+      font-weight: 600;
+    }
+
+    .btn.primary:active {
+      background: #ddd;
+    }
+
+    .btn.danger {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    input {
+      width: 100%;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(0,0,0,0.4);
+      color: var(--text);
+      font-size: 1.1rem;
+      text-align: center;
+      letter-spacing: 0.15em;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: rgba(255,255,255,0.35);
+    }
+
+    .code-display {
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      text-align: center;
+      padding: 12px 0;
+      color: var(--accent);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+
+    .dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .dot.speaking {
+      background: #4da6ff;
+      box-shadow: 0 0 10px #4da6ff;
+      animation: pulse 0.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .players {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .player-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .player-name {
+      font-weight: 500;
+      letter-spacing: 0.05em;
+    }
+
+    .timer {
+      font-size: 3rem;
+      font-weight: 300;
+      text-align: center;
+      letter-spacing: 0.05em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .timer.urgent {
+      color: var(--danger);
+      animation: pulse 0.6s infinite;
+    }
+
+    .info-label {
+      text-align: center;
+      font-size: 0.75rem;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .sequence {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .symbol {
+      width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .symbol.unknown {
+      color: var(--muted);
+      font-size: 1.3rem;
+    }
+
+    .answer-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin: 16px 0;
+    }
+
+    .answer-slot {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .answer-slot.filled {
+      border-color: rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.08);
+    }
+
+    .symbol-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 12px;
+    }
+
+    .picker-btn {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .picker-btn:active {
+      background: rgba(255,255,255,0.12);
+    }
+
+    .mistakes {
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .mistakes span {
+      color: var(--danger);
+    }
+
+    .voice-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-top: 8px;
+    }
+
+    .mute-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .mute-btn.muted {
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+
+    .result-title {
+      font-size: 1.8rem;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .result-title.win {
+      color: var(--success);
+    }
+
+    .result-title.lose {
+      color: var(--danger);
+    }
+
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .stats strong {
+      display: block;
+      font-size: 1.3rem;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .small {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .copy-btn {
+      margin-top: 8px;
+      font-size: 0.85rem;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <!-- LANDING -->
+  <div id="screen-landing" class="screen active">
+    <h1>TWO BRAINS<br>ONE PUZZLE</h1>
+    <p class="subtitle">You don't have the answer.<br>They don't have the answer.<br>Together, you do.</p>
+    <div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">
+      <button class="btn primary" onclick="showCreate()">CREATE ROOM</button>
+      <button class="btn" onclick="showJoin()">JOIN ROOM</button>
+    </div>
+  </div>
+
+  <!-- CREATE -->
+  <div id="screen-create" class="screen">
+    <h1>YOUR ROOM</h1>
+    <div class="panel">
+      <div class="code-display" id="room-code">----</div>
+      <button class="btn copy-btn" onclick="copyCode()">COPY CODE</button>
+    </div>
+    <div class="status">
+      <div class="dot" id="host-dot"></div>
+      <span id="host-status">Waiting for partner...</span>
+    </div>
+    <p class="small">Send the code to your partner.<br>Voice will connect automatically.</p>
+    <button class="btn" onclick="goLanding()">← Back</button>
+  </div>
+
+  <!-- JOIN -->
+  <div id="screen-join" class="screen">
+    <h1>JOIN ROOM</h1>
+    <input type="text" id="join-code" placeholder="ROOM CODE" maxlength="6" autocomplete="off" autocapitalize="characters" />
+    <button class="btn primary" onclick="joinRoom()">JOIN</button>
+    <button class="btn" onclick="goLanding()">← Back</button>
+  </div>
+
+  <!-- LOBBY (both connected) -->
+  <div id="screen-lobby" class="screen">
+    <h1>ROOM <span id="lobby-code"></span></h1>
+    <div class="panel players">
+      <div class="player-row">
+        <span class="player-name" id="p1-name">YOU</span>
+        <div class="status">
+          <div class="dot connected" id="p1-dot"></div>
+          <span id="p1-ready">Connected</span>
+        </div>
+      </div>
+      <div class="player-row">
+        <span class="player-name" id="p2-name">PARTNER</span>
+        <div class="status">
+          <div class="dot" id="p2-dot"></div>
+          <span id="p2-ready">Waiting...</span>
+        </div>
+      </div>
+    </div>
+    <div class="voice-bar">
+      <span id="voice-status">🎤 Connecting voice...</span>
+      <button class="mute-btn" id="mute-btn" onclick="toggleMute()">MUTE</button>
+    </div>
+    <button class="btn primary" id="ready-btn" onclick="toggleReady()">READY</button>
+    <p class="small" id="ready-hint">Both players must press READY</p>
+  </div>
+
+  <!-- GAME -->
+  <div id="screen-game" class="screen">
+    <div class="timer" id="timer">01:30</div>
+    <div class="panel">
+      <div class="info-label">YOUR INFORMATION</div>
+      <div class="sequence" id="my-sequence"></div>
+    </div>
+    <div class="mistakes">Mistakes: <span id="mistake-count">0</span> / 3</div>
+    <div class="voice-bar">
+      <span id="game-voice">🎤 Voice active</span>
+      <button class="mute-btn" id="game-mute" onclick="toggleMute()">MUTE</button>
+    </div>
+    <button class="btn primary" onclick="openSubmit()">SUBMIT ANSWER</button>
+  </div>
+
+  <!-- SUBMIT MODAL -->
+  <div id="screen-submit" class="screen">
+    <h1>YOUR ANSWER</h1>
+    <div class="answer-grid" id="answer-slots"></div>
+    <div class="symbol-picker" id="symbol-picker"></div>
+    <button class="btn primary" id="confirm-btn" onclick="confirmAnswer()" disabled>CONFIRM</button>
+    <button class="btn" onclick="closeSubmit()">CANCEL</button>
+  </div>
+
+  <!-- RESULT -->
+  <div id="screen-result" class="screen">
+    <div class="result-title" id="result-title">PUZZLE SOLVED</div>
+    <p class="subtitle" id="result-msg"></p>
+    <div class="panel stats">
+      <div>
+        <strong id="stat-time">—</strong>
+        Time left
+      </div>
+      <div>
+        <strong id="stat-mistakes">—</strong>
+        Mistakes
+      </div>
+    </div>
+    <button class="btn primary" onclick="playAgain()">PLAY AGAIN</button>
+    <button class="btn" onclick="leaveRoom()">LEAVE ROOM</button>
+  </div>
+
+  <script>
+    // ===================== STATE =====================
+    const SYMBOLS = ['▲', '●', '■', '★', '◆', '○', '△', '◇'];
+    let peer = null;
+    let conn = null;
+    let localStream = null;
+    let isHost = false;
+    let roomId = null;
+    let myId = null;
+    let partnerId = null;
+    let isReady = false;
+    let partnerReady = false;
+    let isMuted = false;
+    let gameActive = false;
+    let timerInterval = null;
+    let timeLeft = 90;
+    let mistakes = 0;
+    let fullSequence = [];
+    let myMask = [];
+    let answerSlots = Array(5).fill(null);
+    let selectedSlot = 0;
+
+    // ===================== UI HELPERS =====================
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function goLanding() {
+      cleanup();
+      showScreen('screen-landing');
+    }
+
+    function showCreate() {
+      isHost = true;
+      roomId = generateCode();
+      document.getElementById('room-code').textContent = roomId;
+      showScreen('screen-create');
+      initPeer();
+    }
+
+    function showJoin() {
+      isHost = false;
+      showScreen('screen-join');
+      document.getElementById('join-code').value = '';
+      document.getElementById('join-code').focus();
+    }
+
+    function generateCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      return code;
+    }
+
+    function copyCode() {
+      navigator.clipboard.writeText(roomId).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = 'COPIED!';
+        setTimeout(() => btn.textContent = 'COPY CODE', 1500);
+      });
+    }
+
+    // ===================== PEER / VOICE =====================
+    function initPeer() {
+      peer = new Peer(roomId + (isHost ? '-H' : '-G'), {
+        debug: 1,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        }
+      });
+
+      peer.on('open', id => {
+        myId = id;
+        console.log('My peer ID:', id);
+        if (isHost) {
+          document.getElementById('host-status').textContent = 'Waiting for partner...';
+          document.getElementById('host-dot').classList.add('connected');
+        }
+      });
+
+      peer.on('connection', c => {
+        setupConnection(c);
+      });
+
+      peer.on('call', call => {
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          .then(stream => {
+            localStream = stream;
+            call.answer(stream);
+            call.on('stream', remoteStream => {
+              playRemoteAudio(remoteStream);
+            });
+          })
+          .catch(err => {
+            console.error('Mic error', err);
+            alert('Microphone permission is required to play.');
+          });
+      });
+
+      peer.on('error', err => {
+        console.error('Peer error:', err);
+        if (err.type === 'peer-unavailable') {
+          alert('Room not found or partner left. Try again.');
+          goLanding();
+        }
+      });
+    }
+
+    function joinRoom() {
+      const code = document.getElementById('join-code').value.trim().toUpperCase();
+      if (code.length < 4) return alert('Enter a valid room code');
+      roomId = code;
+      isHost = false;
+      initPeer();
+
+      // Wait a moment for peer to open then connect
+      const tryConnect = () => {
+        if (!peer || !peer.id) {
+          setTimeout(tryConnect, 200);
+          return;
+        }
+        const hostId = roomId + '-H';
+        const c = peer.connect(hostId, { reliable: true });
+        setupConnection(c);
+
+        // Also call for voice
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          .then(stream => {
+            localStream = stream;
+            const call = peer.call(hostId, stream);
+            call.on('stream', remoteStream => {
+              playRemoteAudio(remoteStream);
+            });
+          })
+          .catch(err => {
+            console.error(err);
+            alert('Please allow microphone access.');
+          });
+      };
+      setTimeout(tryConnect, 300);
+    }
+
+    function setupConnection(c) {
+      conn = c;
+      partnerId = c.peer;
+
+      c.on('open', () => {
+        console.log('Data channel open');
+        if (isHost) {
+          c.send({ type: 'hello', name: 'HOST' });
+          goToLobby();
+        } else {
+          c.send({ type: 'hello', name: 'GUEST' });
+        }
+      });
+
+      c.on('data', data => {
+        handleMessage(data);
+      });
+
+      c.on('close', () => {
+        if (gameActive) {
+          alert('Partner disconnected');
+          leaveRoom();
+        } else {
+          document.getElementById('p2-ready').textContent = 'Disconnected';
+          document.getElementById('p2-dot').classList.remove('connected');
+        }
+      });
+    }
+
+    function playRemoteAudio(stream) {
+      let audio = document.getElementById('remote-audio');
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.id = 'remote-audio';
+        audio.autoplay = true;
+        document.body.appendChild(audio);
+      }
+      audio.srcObject = stream;
+      document.getElementById('voice-status').textContent = '🎤 Voice connected';
+      document.getElementById('game-voice').textContent = '🎤 Voice active';
+    }
+
+    function toggleMute() {
+      if (!localStream) return;
+      isMuted = !isMuted;
+      localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+      document.querySelectorAll('.mute-btn').forEach(btn => {
+        btn.textContent = isMuted ? 'UNMUTE' : 'MUTE';
+        btn.classList.toggle('muted', isMuted);
+      });
+    }
+
+    // ===================== LOBBY =====================
+    function goToLobby() {
+      document.getElementById('lobby-code').textContent = roomId;
+      document.getElementById('p1-name').textContent = isHost ? 'YOU (Host)' : 'YOU';
+      document.getElementById('p2-name').textContent = isHost ? 'PARTNER' : 'HOST';
+      document.getElementById('p1-dot').classList.add('connected');
+      document.getElementById('p2-dot').classList.add('connected');
+      document.getElementById('p2-ready').textContent = 'Connected';
+      showScreen('screen-lobby');
+    }
+
+    function toggleReady() {
+      isReady = !isReady;
+      document.getElementById('ready-btn').textContent = isReady ? 'CANCEL READY' : 'READY';
+      document.getElementById('p1-ready').textContent = isReady ? '✓ Ready' : 'Connected';
+      send({ type: 'ready', ready: isReady });
+
+      if (isReady && partnerReady) {
+        startGame();
+      }
+    }
+
+    // ===================== MESSAGING =====================
+    function send(msg) {
+      if (conn && conn.open) conn.send(msg);
+    }
+
+    function handleMessage(data) {
+      switch (data.type) {
+        case 'hello':
+          goToLobby();
+          break;
+        case 'ready':
+          partnerReady = data.ready;
+          document.getElementById('p2-ready').textContent = partnerReady ? '✓ Ready' : 'Connected';
+          if (isReady && partnerReady) startGame();
+          break;
+        case 'start':
+          // Guest receives only their masked information
+          myMask = data.mask;
+          mistakes = 0;
+          timeLeft = 90;
+          beginPuzzle();
+          break;
+        case 'submit':
+          // Host receives guest submission and validates
+          if (isHost) validateAnswer(data.answer, true);
+          break;
+        case 'result':
+          showResult(data.win, data.timeLeft, data.mistakes);
+          break;
+        case 'playagain':
+          // Reset for new round
+          isReady = false;
+          partnerReady = false;
+          document.getElementById('ready-btn').textContent = 'READY';
+          document.getElementById('p1-ready').textContent = 'Connected';
+          document.getElementById('p2-ready').textContent = 'Connected';
+          showScreen('screen-lobby');
+          break;
+        case 'tick':
+          // Keep timer roughly in sync
+          if (Math.abs(timeLeft - data.t) > 2) timeLeft = data.t;
+          updateTimerDisplay();
+          break;
+      }
+    }
+
+    // ===================== GAME =====================
+    function startGame() {
+      if (!isHost) return; // only host generates
+
+      // Generate sequence
+      fullSequence = [];
+      for (let i = 0; i < 5; i++) {
+        fullSequence.push(SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]);
+      }
+
+      // Create two different masks
+      // Host sees even positions, Guest sees odd
+      const hostMask = fullSequence.map((s, i) => (i % 2 === 0 ? s : '?'));
+      const guestMask = fullSequence.map((s, i) => (i % 2 === 1 ? s : '?'));
+
+      myMask = hostMask;
+
+      // Only send the mask to guest — never the full answer
+      send({
+        type: 'start',
+        mask: guestMask
+      });
+
+      mistakes = 0;
+      timeLeft = 90;
+      beginPuzzle();
+    }
+
+    function beginPuzzle() {
+      gameActive = true;
+      document.getElementById('mistake-count').textContent = '0';
+      renderMySequence();
+      showScreen('screen-game');
+      startTimer();
+    }
+
+    function renderMySequence() {
+      const el = document.getElementById('my-sequence');
+      el.innerHTML = '';
+      myMask.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'symbol' + (s === '?' ? ' unknown' : '');
+        div.textContent = s;
+        el.appendChild(div);
+      });
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      updateTimerDisplay();
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        updateTimerDisplay();
+        if (isHost) send({ type: 'tick', t: timeLeft });
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          endGame(false);
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay() {
+      const m = Math.floor(timeLeft / 60);
+      const s = timeLeft % 60;
+      const el = document.getElementById('timer');
+      el.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      el.classList.toggle('urgent', timeLeft <= 15);
+    }
+
+    // ===================== SUBMIT =====================
+    function openSubmit() {
+      answerSlots = Array(5).fill(null);
+      selectedSlot = 0;
+      renderAnswerUI();
+      showScreen('screen-submit');
+    }
+
+    function closeSubmit() {
+      showScreen('screen-game');
+    }
+
+    function renderAnswerUI() {
+      const slots = document.getElementById('answer-slots');
+      slots.innerHTML = '';
+      answerSlots.forEach((s, i) => {
+        const div = document.createElement('div');
+        div.className = 'answer-slot' + (s ? ' filled' : '');
+        div.textContent = s || (i + 1);
+        div.onclick = () => { selectedSlot = i; };
+        slots.appendChild(div);
+      });
+
+      const picker = document.getElementById('symbol-picker');
+      picker.innerHTML = '';
+      SYMBOLS.forEach(sym => {
+        const btn = document.createElement('button');
+        btn.className = 'picker-btn';
+        btn.textContent = sym;
+        btn.onclick = () => {
+          answerSlots[selectedSlot] = sym;
+          // auto advance
+          selectedSlot = Math.min(4, selectedSlot + 1);
+          renderAnswerUI();
+          document.getElementById('confirm-btn').disabled = answerSlots.some(x => !x);
+        };
+        picker.appendChild(btn);
+      });
+    }
+
+    function confirmAnswer() {
+      if (answerSlots.some(x => !x)) return;
+      const answer = [...answerSlots];
+      if (isHost) {
+        validateAnswer(answer, false);
+      } else {
+        send({ type: 'submit', answer });
+        // wait for result from host
+        document.getElementById('confirm-btn').textContent = 'WAITING...';
+        document.getElementById('confirm-btn').disabled = true;
+      }
+    }
+
+    function validateAnswer(answer, fromGuest) {
+      const correct = answer.every((s, i) => s === fullSequence[i]);
+      if (correct) {
+        endGame(true);
+      } else {
+        mistakes++;
+        document.getElementById('mistake-count').textContent = mistakes;
+        if (mistakes >= 3) {
+          endGame(false);
+        } else {
+          if (fromGuest) {
+            // Tell guest it was wrong so they can try again
+            send({ type: 'wrong', mistakes });
+          }
+          alert('Wrong sequence. Try again.');
+          closeSubmit();
+          document.getElementById('confirm-btn').textContent = 'CONFIRM';
+          document.getElementById('confirm-btn').disabled = false;
+        }
+      }
+    }
+
+    function endGame(win) {
+      gameActive = false;
+      clearInterval(timerInterval);
+      const payload = { type: 'result', win, timeLeft, mistakes };
+      send(payload);
+      showResult(win, timeLeft, mistakes);
+    }
+
+    function showResult(win, remaining, miss) {
+      gameActive = false;
+      clearInterval(timerInterval);
+      const title = document.getElementById('result-title');
+      title.textContent = win ? 'PUZZLE SOLVED' : "TIME'S UP";
+      title.className = 'result-title ' + (win ? 'win' : 'lose');
+      document.getElementById('result-msg').textContent = win
+        ? 'You two actually worked 😂'
+        : 'The puzzle remains unsolved.';
+      document.getElementById('stat-time').textContent = win
+        ? `${Math.floor(remaining / 60)}:${(remaining % 60).toString().padStart(2, '0')}`
+        : '00:00';
+      document.getElementById('stat-mistakes').textContent = miss;
+      showScreen('screen-result');
+    }
+
+    function playAgain() {
+      send({ type: 'playagain' });
+      isReady = false;
+      partnerReady = false;
+      document.getElementById('ready-btn').textContent = 'READY';
+      document.getElementById('p1-ready').textContent = 'Connected';
+      document.getElementById('p2-ready').textContent = 'Connected';
+      showScreen('screen-lobby');
+    }
+
+    function leaveRoom() {
+      cleanup();
+      showScreen('screen-landing');
+    }
+
+    function cleanup() {
+      clearInterval(timerInterval);
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+      }
+      if (conn) { conn.close(); conn = null; }
+      if (peer) { peer.destroy(); peer = null; }
+      gameActive = false;
+      isReady = false;
+      partnerReady = false;
+    }
+
+    // Handle wrong answer notification for guest
+    // (added to handleMessage)
+    const originalHandle = handleMessage;
+    // we already have the switch, so add case in the original if needed
+
+    // Prevent accidental zoom / double-tap
+    document.addEventListener('gesturestart', e => e.preventDefault());
+  </script>
+</body>
+</html>
