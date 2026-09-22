@@ -21,9 +21,7 @@ html, body, #app {
   color: var(--white);
 }
 
-button, input {
-  font: inherit;
-}
+button, input { font: inherit; }
 
 .shell {
   min-height: 100dvh;
@@ -67,10 +65,7 @@ button, input {
   box-shadow: 0 0 16px rgba(156,255,189,.45);
 }
 
-.live-dot.offline {
-  background: #777;
-  box-shadow: none;
-}
+.live-dot.offline { background: #777; box-shadow: none; }
 
 .eyebrow {
   display: block;
@@ -158,12 +153,10 @@ button, input {
 .error {
   color: #ff8f8f;
   font-size: 12px;
-  margin: 0;
+  margin: 8px 0 0;
 }
 
-.room-hero {
-  margin: 8vh 0 24px;
-}
+.room-hero { margin: 8vh 0 24px; }
 
 .code-card {
   margin-top: 22px;
@@ -187,10 +180,7 @@ button, input {
   margin-top: 10px;
 }
 
-.players {
-  display: grid;
-  gap: 10px;
-}
+.players { display: grid; gap: 10px; }
 
 .player {
   min-height: 72px;
@@ -264,9 +254,7 @@ button, input {
 }
 
 .status-dot.ready { background: var(--green); }
-
 .status-line strong { font-size: 12px; }
-
 .status-line p {
   color: #666;
   font-size: 11px;
@@ -331,6 +319,49 @@ button, input {
 
 .error-panel h1 { margin: 8px 0 12px; font-size: 22px; }
 .error-panel p { color: #888; line-height: 1.5; }
+
+.timer {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .12em;
+  font-size: 18px;
+  color: var(--white);
+}
+
+.timer.urgent { color: #ff8f8f; }
+
+.voice-bar.compact {
+  margin: 0 0 18px;
+  padding: 10px;
+  font-size: 10px;
+}
+
+.clue-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  padding: 20px;
+  margin-bottom: 18px;
+}
+
+.clue-card h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.clue-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #cfcfcf;
+  line-height: 1.6;
+}
+
+.prompt { color: #888; margin: 0 0 12px; }
+.win-panel { border-color: rgba(156,255,189,.35); }
+.fail-panel { border-color: rgba(255,143,143,.35); }
+.win-panel h1, .fail-panel h1 { margin: 8px 0 12px; }
+.answer-reveal { margin-top: 16px; color: #aaa; }
+.result .ready-btn { max-width: 420px; }
 
 @media (min-width: 700px) {
   .shell { padding-left: 34px; padding-right: 34px; }
