@@ -33,7 +33,11 @@ const state = {
 
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, c => ({
-    "&": "&", "<": "<", ">": ">", '"': """, "'": "&#039;"
+    "&": "&",
+    "<": "<",
+    ">": ">",
+    '"': """,
+    "'": "&#039;"
   }[c]));
 }
 
@@ -206,7 +210,7 @@ async function connectRoom() {
       render();
     });
 
-  const status = await channel.subscribe(async (status) => {
+  await channel.subscribe(async (status) => {
     if (status === "SUBSCRIBED") {
       state.connected = true;
       await channel.track({
