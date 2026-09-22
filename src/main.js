@@ -19,6 +19,27 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+  {
+    urls: "turn:openrelay.metered.ca:80",
+    username: "openrelayproject",
+    credential: "openrelayproject"
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443",
+    username: "openrelayproject",
+    credential: "openrelayproject"
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443?transport=tcp",
+    username: "openrelayproject",
+    credential: "openrelayproject"
+  }
+];
+
 const app = document.querySelector("#app");
 const state = {
   screen: "home",
@@ -34,7 +55,9 @@ const state = {
   localStream: null,
   remoteStream: null,
   pc: null,
-  isHost: false
+  isHost: false,
+  makingOffer: false,
+  polite: false
 };
 
 function escapeHtml(value = "") {
@@ -112,7 +135,7 @@ function renderRoom() {
       statusSub = "Allow microphone access if prompted.";
     } else if (state.voiceStatus === "failed") {
       statusTitle = "Voice failed";
-      statusSub = state.error || "Check mic permissions and try again.";
+      statusSub = state.error || "Tap RETRY VOICE to try again.";
     } else {
       statusTitle = "Both ready";
       statusSub = "Starting voice link…";
@@ -121,7 +144,8 @@ function renderRoom() {
   }
 
   const showReadyBtn = bothOnline && !state.ready;
-  const showVoiceNote = bothReady || state.voiceStatus === "connected";
+  const showRetry = bothReady && state.voiceStatus === "failed";
+  const showMicLive = state.voiceStatus === "connected";
 
   app.innerHTML = `
     <main class="shell">
@@ -173,8 +197,9 @@ function renderRoom() {
       </section>
 
       ${showReadyBtn ? `<button class="btn primary ready-btn" id="readyBtn">READY</button>` : ""}
+      ${showRetry ? `<button class="btn primary ready-btn" id="retryBtn">RETRY VOICE</button>` : ""}
 
-      ${state.voiceStatus === "connected" ? `
+      ${showMicLive ? `
         <div class="voice-bar">
           <span class="voice-dot"></span>
           <span>MIC LIVE</span>
@@ -182,7 +207,7 @@ function renderRoom() {
       ` : ""}
 
       <p class="microcopy">
-        ${showVoiceNote
+        ${showMicLive
           ? "Voice is live. Asymmetric puzzle is next."
           : "Ready up together → voice connects automatically."}
       </p>
@@ -196,6 +221,15 @@ function renderRoom() {
 
   const readyBtn = document.getElementById("readyBtn");
   if (readyBtn) readyBtn.onclick = setReady;
+
+  const retryBtn = document.getElementById("retryBtn");
+  if (retryBtn) retryBtn.onclick = () => {
+    cleanupPeer();
+    state.voiceStatus = "idle";
+    state.error = "";
+    render();
+    maybeStartVoice();
+  };
 }
 
 function makeRoomCode() {
@@ -210,6 +244,7 @@ async function createRoom() {
   state.roomCode = makeRoomCode();
   state.role = "host";
   state.isHost = true;
+  state.polite = false;
   state.screen = "room";
   render();
   await connectRoom();
@@ -227,6 +262,7 @@ async function joinRoom() {
   state.roomCode = code;
   state.role = "partner";
   state.isHost = false;
+  state.polite = true;
   state.screen = "room";
   render();
   await connectRoom();
@@ -305,77 +341,135 @@ function maybeStartVoice() {
   startVoice();
 }
 
+function cleanupPeer() {
+  if (state.pc) {
+    try { state.pc.close(); } catch {}
+    state.pc = null;
+  }
+  state.makingOffer = false;
+}
+
+async function ensureMic() {
+  if (state.localStream) return state.localStream;
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    },
+    video: false
+  });
+  state.localStream = stream;
+  return stream;
+}
+
+function createPeer() {
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  state.pc = pc;
+
+  if (state.localStream) {
+    state.localStream.getTracks().forEach(track => {
+      pc.addTrack(track, state.localStream);
+    });
+  }
+
+  pc.ontrack = (event) => {
+    state.remoteStream = event.streams[0];
+    let audio = document.getElementById("remoteAudio");
+    if (!audio) {
+      audio = document.createElement("audio");
+      audio.id = "remoteAudio";
+      audio.autoplay = true;
+      audio.playsInline = true;
+      document.body.appendChild(audio);
+    }
+    audio.srcObject = state.remoteStream;
+    audio.play().catch(() => {});
+    state.voiceStatus = "connected";
+    state.error = "";
+    render();
+  };
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate && state.channel) {
+      state.channel.send({
+        type: "broadcast",
+        event: "signal",
+        payload: {
+          type: "ice",
+          from: state.playerId,
+          candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate
+        }
+      });
+    }
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    const s = pc.iceConnectionState;
+    if (s === "connected" || s === "completed") {
+      state.voiceStatus = "connected";
+      state.error = "";
+      render();
+    } else if (s === "failed") {
+      state.voiceStatus = "failed";
+      state.error = "Could not establish voice (NAT). Tap RETRY VOICE.";
+      render();
+    } else if (s === "disconnected") {
+      setTimeout(() => {
+        if (state.pc && state.pc.iceConnectionState === "disconnected") {
+          state.voiceStatus = "failed";
+          state.error = "Voice connection dropped. Tap RETRY VOICE.";
+          render();
+        }
+      }, 3000);
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "failed") {
+      state.voiceStatus = "failed";
+      state.error = "Voice connection failed. Tap RETRY VOICE.";
+      render();
+    }
+  };
+
+  return pc;
+}
+
 async function startVoice() {
   state.voiceStatus = "requesting";
   state.error = "";
   render();
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    state.localStream = stream;
+    await ensureMic();
     state.voiceStatus = "connecting";
     render();
 
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" }
-      ]
-    });
-    state.pc = pc;
-
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-    pc.ontrack = (event) => {
-      state.remoteStream = event.streams[0];
-      let audio = document.getElementById("remoteAudio");
-      if (!audio) {
-        audio = document.createElement("audio");
-        audio.id = "remoteAudio";
-        audio.autoplay = true;
-        audio.playsInline = true;
-        document.body.appendChild(audio);
-      }
-      audio.srcObject = state.remoteStream;
-      state.voiceStatus = "connected";
-      render();
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && state.channel) {
-        state.channel.send({
-          type: "broadcast",
-          event: "signal",
-          payload: { type: "ice", from: state.playerId, candidate: event.candidate }
-        });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") {
-        state.voiceStatus = "connected";
-        render();
-      } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        state.voiceStatus = "failed";
-        state.error = "Voice connection dropped.";
-        render();
-      }
-    };
+    cleanupPeer();
+    createPeer();
 
     if (state.isHost) {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+      state.makingOffer = true;
+      const offer = await state.pc.createOffer({ offerToReceiveAudio: true });
+      await state.pc.setLocalDescription(offer);
+      state.makingOffer = false;
+
       state.channel.send({
         type: "broadcast",
         event: "signal",
-        payload: { type: "offer", from: state.playerId, sdp: offer }
+        payload: {
+          type: "offer",
+          from: state.playerId,
+          sdp: state.pc.localDescription
+        }
       });
     }
   } catch (err) {
     console.error(err);
     state.voiceStatus = "failed";
     state.error = err.name === "NotAllowedError"
-      ? "Microphone permission denied. Allow mic and try again."
+      ? "Microphone permission denied. Allow mic in browser settings."
       : "Could not access microphone.";
     render();
   }
@@ -384,95 +478,67 @@ async function startVoice() {
 async function handleSignal(payload) {
   if (!payload || payload.from === state.playerId) return;
 
-  if (payload.type === "offer" && !state.pc) {
-    if (!state.localStream) {
-      try {
-        state.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      } catch (err) {
-        state.voiceStatus = "failed";
-        state.error = "Microphone permission denied.";
-        render();
-        return;
-      }
-    }
-
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" }
-      ]
-    });
-    state.pc = pc;
-    state.localStream.getTracks().forEach(track => pc.addTrack(track, state.localStream));
-
-    pc.ontrack = (event) => {
-      state.remoteStream = event.streams[0];
-      let audio = document.getElementById("remoteAudio");
-      if (!audio) {
-        audio = document.createElement("audio");
-        audio.id = "remoteAudio";
-        audio.autoplay = true;
-        audio.playsInline = true;
-        document.body.appendChild(audio);
-      }
-      audio.srcObject = state.remoteStream;
-      state.voiceStatus = "connected";
-      render();
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && state.channel) {
-        state.channel.send({
-          type: "broadcast",
-          event: "signal",
-          payload: { type: "ice", from: state.playerId, candidate: event.candidate }
-        });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") {
-        state.voiceStatus = "connected";
-        render();
-      } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        state.voiceStatus = "failed";
-        state.error = "Voice connection dropped.";
-        render();
-      }
-    };
-  }
-
-  if (!state.pc) return;
-
   try {
     if (payload.type === "offer") {
+      if (!state.localStream) {
+        try {
+          await ensureMic();
+        } catch (err) {
+          state.voiceStatus = "failed";
+          state.error = "Microphone permission denied.";
+          render();
+          return;
+        }
+      }
+
+      if (!state.pc) createPeer();
+
+      const offerCollision = state.makingOffer || state.pc.signalingState !== "stable";
+      if (offerCollision && !state.polite) {
+        return;
+      }
+
       await state.pc.setRemoteDescription(payload.sdp);
       const answer = await state.pc.createAnswer();
       await state.pc.setLocalDescription(answer);
+
       state.channel.send({
         type: "broadcast",
         event: "signal",
-        payload: { type: "answer", from: state.playerId, sdp: answer }
+        payload: {
+          type: "answer",
+          from: state.playerId,
+          sdp: state.pc.localDescription
+        }
       });
+
       state.voiceStatus = "connecting";
       render();
     } else if (payload.type === "answer") {
-      await state.pc.setRemoteDescription(payload.sdp);
-      state.voiceStatus = "connecting";
-      render();
+      if (!state.pc) return;
+      if (state.pc.signalingState === "have-local-offer") {
+        await state.pc.setRemoteDescription(payload.sdp);
+        state.voiceStatus = "connecting";
+        render();
+      }
     } else if (payload.type === "ice" && payload.candidate) {
-      await state.pc.addIceCandidate(payload.candidate);
+      if (!state.pc) return;
+      try {
+        await state.pc.addIceCandidate(payload.candidate);
+      } catch (e) {
+        console.warn("ICE add failed", e);
+      }
     }
   } catch (err) {
     console.error("Signal error", err);
+    state.voiceStatus = "failed";
+    state.error = "Signaling error. Tap RETRY VOICE.";
+    render();
   }
 }
 
 async function leaveRoom() {
-  if (state.pc) {
-    state.pc.close();
-    state.pc = null;
-  }
+  cleanupPeer();
   if (state.localStream) {
     state.localStream.getTracks().forEach(t => t.stop());
     state.localStream = null;
@@ -494,6 +560,7 @@ async function leaveRoom() {
   state.voiceStatus = "idle";
   state.isHost = false;
   state.remoteStream = null;
+  state.makingOffer = false;
   render();
 }
 
