@@ -89,12 +89,15 @@ function renderGame() {
   const clues = state.role === "host" ? state.puzzle.host : state.puzzle.partner;
   const mm = String(Math.floor(state.remaining / 60)).padStart(2, "0");
   const ss = String(state.remaining % 60).padStart(2, "0");
-  app.innerHTML = `<main class="shell game"><header class="topbar"><div class="brand">${escapeHtml(state.puzzle.title)}</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header><div class="voice-bar compact"><span class="voice-dot"></span><span>MIC LIVE — TALK</span></div><section class="clue-card"><span class="eyebrow">YOUR CLUES ONLY</span><h2>Do not show this screen.</h2><ul>${clues.map(c => `<li>${escapeHtml(c)}</li>`).join("")}</ul></section><p class="prompt">${escapeHtml(state.puzzle.prompt)}</p><div class="join-row"><input id="answerInput" class="input" maxlength="8" placeholder="ANSWER" autocomplete="off" value="${escapeHtml(state.answerDraft)}" /><button class="btn primary" id="submitBtn">SEND</button></div>${state.error ? `<p class="error">${escapeHtml(state.error)}</p>` : ""}<p class="microcopy">Either of you can submit. One shared answer.</p></main>`;
+  app.innerHTML = `<main class="shell game"><header class="topbar"><div class="brand">${escapeHtml(state.puzzle.title)}</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header><div class="voice-bar compact"><span class="voice-dot"></span><span>MIC LIVE — TAP IF SILENT</span></div><section class="clue-card"><span class="eyebrow">YOUR CLUES ONLY</span><h2>Do not show this screen.</h2><ul>${clues.map(c => `<li>${escapeHtml(c)}</li>`).join("")}</ul></section><p class="prompt">${escapeHtml(state.puzzle.prompt)}</p><div class="join-row"><input id="answerInput" class="input" maxlength="8" placeholder="ANSWER" autocomplete="off" value="${escapeHtml(state.answerDraft)}" /><button class="btn primary" id="submitBtn">SEND</button></div>${state.error ? `<p class="error">${escapeHtml(state.error)}</p>` : ""}<p class="microcopy">Either of you can submit. One shared answer.</p></main>`;
   const input = document.getElementById("answerInput");
   input.focus();
   input.oninput = () => { state.answerDraft = input.value.toUpperCase(); };
   input.onkeydown = (e) => { if (e.key === "Enter") submitAnswer(); };
   document.getElementById("submitBtn").onclick = submitAnswer;
+  const vb = document.querySelector(".voice-bar");
+  if (vb) vb.onclick = () => { keepAliveVoice(); };
+  keepAliveVoice();
 }
 
 function renderResult() {
@@ -102,6 +105,7 @@ function renderResult() {
   app.innerHTML = `<main class="shell center result"><section class="panel ${win ? "win-panel" : "fail-panel"}"><span class="eyebrow">${win ? "CLEARED" : "FAILED"}</span><h1>${win ? "TWO BRAINS." : "TIME'S UP."}</h1><p>${win ? "You solved it together." : "The lock reset."}</p><p class="answer-reveal">Answer: <strong>${escapeHtml(state.puzzle.answer)}</strong></p></section><button class="btn primary ready-btn" id="againBtn">PLAY AGAIN</button><button class="ghost" id="leaveBtn">LEAVE ROOM</button></main>`;
   document.getElementById("againBtn").onclick = startPuzzle;
   document.getElementById("leaveBtn").onclick = leaveRoom;
+  keepAliveVoice();
 }
 
 function makeRoomCode() {
@@ -125,10 +129,17 @@ async function connectRoom() {
     .on("presence", { event: "sync" }, () => {
       const players = [];
       Object.values(channel.presenceState()).forEach(list => list.forEach(item => players.push(item)));
-      state.players = players; state.connected = true; render(); maybeStartVoice();
+      state.players = players; state.connected = true;
+      if (state.screen === "room" || state.screen === "home") render();
+      maybeStartVoice();
     })
-    .on("presence", { event: "join" }, () => { state.connected = true; render(); })
-    .on("presence", { event: "leave" }, () => { render(); })
+    .on("presence", { event: "join" }, () => {
+      state.connected = true;
+      if (state.screen === "room" || state.screen === "home") render();
+    })
+    .on("presence", { event: "leave" }, () => {
+      if (state.screen === "room" || state.screen === "home") render();
+    })
     .on("broadcast", { event: "signal" }, ({ payload }) => { handleSignal(payload); })
     .on("broadcast", { event: "game" }, ({ payload }) => { handleGame(payload); });
   await channel.subscribe(async (status) => {
@@ -158,14 +169,35 @@ async function ensureMic() {
   state.localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
   return state.localStream;
 }
+
+function keepAliveVoice() {
+  try {
+    if (state.localStream) state.localStream.getAudioTracks().forEach(t => { t.enabled = true; });
+    if (state.remoteStream) state.remoteStream.getAudioTracks().forEach(t => { t.enabled = true; });
+    const audio = document.getElementById("remoteAudio");
+    if (audio) {
+      audio.muted = false;
+      audio.volume = 1;
+      if (state.remoteStream && audio.srcObject !== state.remoteStream) audio.srcObject = state.remoteStream;
+      const p = audio.play();
+      if (p && p.catch) p.catch(() => {});
+    }
+  } catch (e) {}
+}
+
 function attachRemoteAudio(stream) {
   state.remoteStream = stream;
   let audio = document.getElementById("remoteAudio");
   if (!audio) { audio = document.createElement("audio"); audio.id = "remoteAudio"; audio.autoplay = true; audio.playsInline = true; document.body.appendChild(audio); }
   if (audio.srcObject !== stream) audio.srcObject = stream;
-  audio.muted = false; audio.play().catch(() => {});
+  audio.muted = false; audio.volume = 1; audio.play().catch(() => {});
 }
-function markVoiceConnected() { if (state.voiceStatus === "connected") return; state.voiceStatus = "connected"; state.error = ""; render(); }
+function markVoiceConnected() {
+  if (state.voiceStatus === "connected") return;
+  state.voiceStatus = "connected"; state.error = "";
+  if (state.screen === "room" || state.screen === "home") render();
+  keepAliveVoice();
+}
 function createPeer() {
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceTransportPolicy: "all", bundlePolicy: "max-bundle", iceCandidatePoolSize: 2 });
   state.pc = pc;
@@ -176,7 +208,7 @@ function createPeer() {
   };
   pc.oniceconnectionstatechange = () => {
     const s = pc.iceConnectionState;
-    if (s === "connected" || s === "completed") { markVoiceConnected(); const a = document.getElementById("remoteAudio"); if (a) a.play().catch(() => {}); }
+    if (s === "connected" || s === "completed") { markVoiceConnected(); keepAliveVoice(); }
     else if (s === "disconnected" || s === "failed") { try { pc.restartIce(); } catch {} }
   };
   pc.onconnectionstatechange = () => { if (pc.connectionState === "connected") markVoiceConnected(); };
@@ -220,6 +252,7 @@ async function handleSignal(payload) {
 }
 function sendGame(payload) { if (state.channel) state.channel.send({ type: "broadcast", event: "game", payload }); }
 function startPuzzle() {
+  keepAliveVoice();
   const puzzle = pickPuzzle(state.roomCode + String(Date.now()).slice(-3));
   const startedAt = Date.now();
   beginRound(puzzle, startedAt);
@@ -228,11 +261,13 @@ function startPuzzle() {
 function beginRound(puzzle, startedAt) {
   clearInterval(state.timerId);
   state.puzzle = puzzle; state.startedAt = startedAt; state.remaining = ROUND_SECONDS; state.result = ""; state.answerDraft = ""; state.error = ""; state.screen = "game"; render();
+  keepAliveVoice();
   state.timerId = setInterval(() => {
     state.remaining = Math.max(0, ROUND_SECONDS - Math.floor((Date.now() - state.startedAt) / 1000));
     if (state.screen === "game") {
       const el = document.querySelector(".timer");
       if (el) { el.textContent = String(Math.floor(state.remaining / 60)).padStart(2, "0") + ":" + String(state.remaining % 60).padStart(2, "0"); el.classList.toggle("urgent", state.remaining <= 15); }
+      if (state.remaining % 5 === 0) keepAliveVoice();
     }
     if (state.remaining <= 0) endRound("timeout");
   }, 250);
