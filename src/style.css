@@ -401,3 +401,193 @@ button.flash-cell:disabled { cursor: default; }
   .shell { padding-left: 32px; padding-right: 32px; max-width: 520px; margin: 0 auto; }
   .grid { max-width: 300px; }
 }
+
+/* ========== Landing + Room elevation ========== */
+.home-shell .hero {
+  margin-top: 4vh;
+}
+.home-shell .premise {
+  color: #777;
+  line-height: 1.55;
+  margin: 16px 0 0;
+}
+.home-shell .premise em {
+  font-style: normal;
+  color: #c8c8c8;
+}
+
+/* Two → one motif */
+.motif {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin: 28px 0 8px;
+  position: relative;
+  z-index: 2;
+  min-height: 48px;
+}
+.motif-sm {
+  margin: 8px 0 18px;
+  min-height: 28px;
+  flex-direction: row;
+  justify-content: center;
+  gap: 0;
+  align-items: center;
+}
+.motif-orb {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f2f2f2;
+  box-shadow: 0 0 12px rgba(255,255,255,.25);
+  display: block;
+  position: relative;
+}
+.motif:not(.motif-sm) {
+  /* stacked: orbs move horizontally via animation on a row */
+}
+.motif:not(.motif-sm)::before {
+  content: none;
+}
+/* Horizontal two orbs on landing */
+.motif:not(.motif-sm) {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-items: center;
+  column-gap: 0;
+  width: 100%;
+  max-width: 220px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.motif:not(.motif-sm) .motif-orb.left {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  margin-right: 8px;
+  animation: orb-in-left 3.2s ease-in-out infinite alternate;
+}
+.motif:not(.motif-sm) .motif-orb.right {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+  margin-left: 8px;
+  animation: orb-in-right 3.2s ease-in-out infinite alternate;
+}
+.motif:not(.motif-sm) .motif-line {
+  grid-column: 2;
+  grid-row: 1;
+  width: 48px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+  display: block;
+}
+.motif:not(.motif-sm) .motif-label {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  font-size: 9px;
+  letter-spacing: .22em;
+  color: #4a4a4a;
+  margin-top: 4px;
+}
+@keyframes orb-in-left {
+  from { transform: translateX(-18px); opacity: .5; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes orb-in-right {
+  from { transform: translateX(18px); opacity: .5; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.motif-sm .motif-orb {
+  width: 6px;
+  height: 6px;
+}
+.motif-sm .motif-line {
+  width: 36px;
+  height: 1px;
+  background: rgba(255,255,255,.2);
+  margin: 0 10px;
+  display: block;
+  transition: width .4s ease, background .4s ease;
+}
+.motif-sm .motif-orb.meet,
+.motif-sm .motif-line.meet {
+  background: var(--green);
+  box-shadow: 0 0 10px rgba(156,255,189,.35);
+}
+.motif-sm .motif-line.meet {
+  width: 20px;
+}
+
+/* Create room CTA */
+.btn-create {
+  border-radius: 10px;
+  letter-spacing: .14em;
+  min-height: 54px;
+  border: 1px solid rgba(255,255,255,.2);
+  transition: background .2s, transform .15s, box-shadow .2s;
+  position: relative;
+}
+.btn-create:active:not(:disabled) {
+  transform: scale(0.985);
+}
+.btn-create.creating {
+  background: #d8d8d8;
+  letter-spacing: .1em;
+}
+.btn-create .btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Room artifact */
+.code-artifact {
+  cursor: pointer;
+  user-select: all;
+  letter-spacing: .18em !important;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  padding-bottom: 8px;
+  display: inline-block;
+}
+.copy-hint {
+  margin-top: 6px;
+  letter-spacing: .16em;
+  font-size: 10px;
+  color: #555;
+}
+.players-label {
+  margin-bottom: 8px;
+}
+.player-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.player.just-joined {
+  border-color: rgba(156,255,189,.4);
+  animation: join-glow 0.9s ease;
+}
+@keyframes join-glow {
+  0% { box-shadow: 0 0 0 0 rgba(156,255,189,.35); }
+  40% { box-shadow: 0 0 24px 2px rgba(156,255,189,.25); }
+  100% { box-shadow: none; }
+}
+.partner-flash {
+  text-align: center;
+  letter-spacing: .2em;
+  font-size: 11px;
+  color: var(--green);
+  margin: 4px 0 0;
+  animation: flash-in 0.9s ease;
+}
+@keyframes flash-in {
+  from { opacity: 0; letter-spacing: .4em; }
+  to { opacity: 1; letter-spacing: .2em; }
+}
+.room-shell .status-panel {
+  margin-top: 12px;
+}

@@ -175,8 +175,40 @@ function render() {
 }
 
 function renderHome() {
-  app.innerHTML = `<main class="shell"><header class="topbar"><div class="brand">TWO BRAINS</div><div class="live"><span class="live-dot"></span>ONLINE</div></header><section class="hero"><span class="eyebrow">COOPERATIVE PUZZLE</span><h1>TWO BRAINS,<br>ONE PUZZLE.</h1><p>You don't have the answer.<br>They don't have the answer.<br>Together, you do.</p></section><section class="home-actions"><button class="btn primary" id="createBtn">CREATE ROOM</button><div class="divider"><span>OR</span></div><div class="join-row"><input id="roomInput" class="input" maxlength="6" placeholder="ROOM CODE" autocomplete="off" /><button class="btn" id="joinBtn">JOIN</button></div>${state.error ? `<p class="error">${escapeHtml(state.error)}</p>` : ""}<p class="microcopy">Stay on WhatsApp. Play here.</p></section></main>`;
-  document.getElementById("createBtn").onclick = createRoom;
+  app.innerHTML = `<main class="shell home-shell">
+    <header class="topbar">
+      <div class="brand">TWO BRAINS</div>
+      <div class="live"><span class="live-dot"></span>ONLINE</div>
+    </header>
+    <section class="hero">
+      <span class="eyebrow">COOPERATIVE PUZZLE</span>
+      <h1>TWO BRAINS,<br>ONE PUZZLE.</h1>
+      <p class="premise">You don't have the answer.<br>They don't have the answer.<br><em>Together, you do.</em></p>
+    </section>
+    <div class="motif" aria-hidden="true">
+      <span class="motif-orb left"></span>
+      <span class="motif-line"></span>
+      <span class="motif-orb right"></span>
+      <span class="motif-label">TWO MINDS · ONE PROBLEM</span>
+    </div>
+    <section class="home-actions">
+      <button class="btn primary btn-create" id="createBtn"><span class="btn-label">CREATE ROOM</span></button>
+      <div class="divider"><span>OR</span></div>
+      <div class="join-row">
+        <input id="roomInput" class="input" maxlength="6" placeholder="ROOM CODE" autocomplete="off" />
+        <button class="btn" id="joinBtn">JOIN</button>
+      </div>
+      ${state.error ? `<p class="error">${escapeHtml(state.error)}</p>` : ""}
+      <p class="microcopy">Stay on WhatsApp.<br>Play here.</p>
+    </section>
+  </main>`;
+  const createBtn = document.getElementById("createBtn");
+  createBtn.onclick = async () => {
+    createBtn.classList.add("creating");
+    createBtn.querySelector(".btn-label").textContent = "CREATING ROOM ···";
+    createBtn.disabled = true;
+    await createRoom();
+  };
   document.getElementById("joinBtn").onclick = joinRoom;
   document.getElementById("roomInput").onkeydown = (e) => { if (e.key === "Enter") joinRoom(); };
 }
@@ -184,9 +216,70 @@ function renderHome() {
 function renderRoom() {
   const p = partner();
   const both = state.players.length >= 2;
-  app.innerHTML = `<main class="shell"><header class="topbar"><button class="ghost" id="leaveBtn">LEAVE</button><div class="live"><span class="live-dot ${state.connected ? "" : "offline"}"></span>${state.connected ? "LIVE" : "…"}</div></header><section class="room-hero compact"><span class="eyebrow">ROOM</span><h1 class="code-lg">${escapeHtml(state.roomCode)}</h1><button class="ghost tight" id="copyBtn">COPY CODE</button></section><section class="name-block"><label class="eyebrow">YOUR NAME</label><input id="nameInput" class="input" maxlength="12" placeholder="NAME" value="${escapeHtml(state.playerName)}" /></section><section class="players"><div class="player"><div class="avatar">${escapeHtml((state.playerName || "YOU").slice(0, 2).toUpperCase())}</div><div><span>${state.isHost ? "HOST" : "GUEST"}</span><strong>${escapeHtml(state.playerName || "YOU")}</strong></div><i class="online"></i></div><div class="player ${p ? "" : "empty"}"><div class="avatar">${p ? escapeHtml((p.name || "P2").slice(0, 2).toUpperCase()) : "?"}</div><div><span>PARTNER</span><strong>${p ? escapeHtml(p.name || "PLAYER 2") : "WAITING"}</strong></div><i class="${p ? "online" : ""}"></i></div></section><section class="status-panel"><div class="status-line"><div class="status-dot ${bothReady() ? "ready" : ""}"></div><div><strong>${!both ? "Waiting for partner" : bothReady() ? "Both ready" : state.ready ? "Waiting for partner" : "Ready up"}</strong><p>${!both ? "Share the room code." : bothReady() ? "Host can open levels." : "Names on. Then ready."}</p></div></div></section>${both && !state.ready ? `<button class="btn primary ready-btn" id="readyBtn">READY</button>` : ""}${bothReady() && state.isHost ? `<button class="btn primary ready-btn" id="levelsBtn">LEVEL SELECT</button>` : ""}${bothReady() && !state.isHost ? `<p class="microcopy">Waiting for host to choose a level…</p>` : ""}</main>`;
+  const justJoined = both && state._partnerFlash;
+  if (justJoined) {
+    setTimeout(() => { state._partnerFlash = false; if (state.screen === "room") render(); }, 1200);
+  }
+  app.innerHTML = `<main class="shell room-shell">
+    <header class="topbar">
+      <button class="ghost" id="leaveBtn">LEAVE</button>
+      <div class="live"><span class="live-dot ${state.connected ? "" : "offline"}"></span>${state.connected ? "LIVE" : "…"}</div>
+    </header>
+    <section class="room-hero compact">
+      <span class="eyebrow">ROOM</span>
+      <h1 class="code-lg code-artifact" id="copyBtn" title="Tap to copy">${escapeHtml(state.roomCode)}</h1>
+      <button class="ghost tight copy-hint" id="copyHint">TAP TO COPY</button>
+    </section>
+    <div class="motif motif-sm" aria-hidden="true">
+      <span class="motif-orb left ${both ? "meet" : ""}"></span>
+      <span class="motif-line ${both ? "meet" : ""}"></span>
+      <span class="motif-orb right ${both ? "meet" : ""}"></span>
+    </div>
+    <section class="name-block">
+      <label class="eyebrow">YOUR NAME</label>
+      <input id="nameInput" class="input" maxlength="12" placeholder="NAME" value="${escapeHtml(state.playerName)}" />
+    </section>
+    <section class="players">
+      <span class="eyebrow players-label">PLAYERS</span>
+      <div class="player">
+        <div class="avatar">${escapeHtml((state.playerName || "YOU").slice(0, 2).toUpperCase())}</div>
+        <div class="player-meta">
+          <span>${state.isHost ? "HOST" : "GUEST"}</span>
+          <strong>${escapeHtml(state.playerName || "YOU")}</strong>
+        </div>
+        <i class="online"></i>
+      </div>
+      <div class="player ${p ? "" : "empty"} ${justJoined ? "just-joined" : ""}">
+        <div class="avatar">${p ? escapeHtml((p.name || "P2").slice(0, 2).toUpperCase()) : "?"}</div>
+        <div class="player-meta">
+          <span>PARTNER</span>
+          <strong>${p ? escapeHtml(p.name || "PLAYER 2") : "WAITING"}</strong>
+        </div>
+        <i class="${p ? "online" : ""}"></i>
+      </div>
+    </section>
+    ${justJoined ? `<p class="partner-flash">PARTNER CONNECTED</p>` : ""}
+    <section class="status-panel">
+      <div class="status-line">
+        <div class="status-dot ${bothReady() ? "ready" : ""}"></div>
+        <div>
+          <strong>${!both ? "Waiting for partner" : bothReady() ? "Both ready" : state.ready ? "Waiting for partner" : "Ready up"}</strong>
+          <p>${!both ? "Share the room code." : bothReady() ? "Host can open levels." : "Names on. Then ready."}</p>
+        </div>
+      </div>
+    </section>
+    ${both && !state.ready ? `<button class="btn primary ready-btn" id="readyBtn">READY</button>` : ""}
+    ${bothReady() && state.isHost ? `<button class="btn primary ready-btn" id="levelsBtn">LEVEL SELECT</button>` : ""}
+    ${bothReady() && !state.isHost ? `<p class="microcopy">Waiting for host to choose a level…</p>` : ""}
+  </main>`;
   document.getElementById("leaveBtn").onclick = leaveRoom;
-  document.getElementById("copyBtn").onclick = async () => { try { await navigator.clipboard.writeText(state.roomCode); } catch {} };
+  const doCopy = async () => {
+    try { await navigator.clipboard.writeText(state.roomCode); } catch {}
+    const hint = document.getElementById("copyHint");
+    if (hint) { hint.textContent = "COPIED"; setTimeout(() => { if (hint) hint.textContent = "TAP TO COPY"; }, 1200); }
+  };
+  document.getElementById("copyBtn").onclick = doCopy;
+  document.getElementById("copyHint").onclick = doCopy;
   const nameInput = document.getElementById("nameInput");
   nameInput.oninput = () => { state.playerName = nameInput.value.slice(0, 12); };
   nameInput.onchange = () => trackPresence();
@@ -840,6 +933,9 @@ async function connectRoom() {
   channel
     .on("presence", { event: "sync" }, () => {
       const players = []; Object.values(channel.presenceState()).forEach((list) => list.forEach((item) => players.push(item)));
+      const nowPartner = players.some((x) => x.playerId !== state.playerId);
+      if (nowPartner && !state._hadPartner && state.screen === "room") state._partnerFlash = true;
+      state._hadPartner = nowPartner;
       state.players = players; state.connected = true;
       if (["room", "home", "levels"].includes(state.screen)) render();
     })
