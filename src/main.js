@@ -11,21 +11,6 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "stun:stun2.l.google.com:19302" },
-  {
-    urls: [
-      "turn:openrelay.metered.ca:80",
-      "turn:openrelay.metered.ca:443",
-      "turn:openrelay.metered.ca:443?transport=tcp"
-    ],
-    username: "openrelayproject",
-    credential: "openrelayproject"
-  }
-];
-
 const ROUND_SECONDS = 90;
 const GRID = 3;
 const SYMBOLS = ["●", "▲", "★"];
@@ -41,15 +26,7 @@ const state = {
   connected: false,
   error: "",
   ready: false,
-  voiceStatus: "idle",
-  iceState: "",
-  localStream: null,
-  remoteStream: null,
-  pc: null,
   isHost: false,
-  makingOffer: false,
-  polite: false,
-  voiceStarted: false,
   puzzle: null,
   remaining: ROUND_SECONDS,
   startedAt: 0,
@@ -85,6 +62,7 @@ function renderHome() {
         <span class="eyebrow">ASYMMETRIC MULTIPLAYER</span>
         <h1>TWO BRAINS,<br>ONE PUZZLE.</h1>
         <p>You don't have the answer.<br>They don't have the answer.<br>Together, you do.</p>
+        <p class="microcopy" style="margin:12px 0 0;text-align:left;color:#666">Stay on WhatsApp call. Play here.</p>
       </section>
       <section class="home-actions">
         <button class="btn primary" id="createBtn">CREATE ROOM</button>
@@ -105,7 +83,6 @@ function renderRoom() {
   const partner = state.players.find((p) => p.playerId !== state.playerId);
   const bothOnline = state.players.length >= 2;
   const bothReady = state.ready && partner?.ready === true;
-  const showMicLive = state.voiceStatus === "connected";
 
   let statusTitle = "Waiting for partner";
   let statusSub = "Send the room code and wait.";
@@ -113,22 +90,13 @@ function renderRoom() {
 
   if (bothOnline && !bothReady) {
     statusTitle = state.ready ? "Waiting for partner to ready" : "Both online — ready up";
-    statusSub = state.ready ? "You are ready." : "Tap READY when mics are free.";
+    statusSub = state.ready
+      ? "You are ready. Waiting for them."
+      : "Stay on WhatsApp. Tap READY when both of you are set.";
   } else if (bothReady) {
-    if (state.voiceStatus === "connected") {
-      statusTitle = "Voice connected";
-      statusSub = "Talk first. Then enter THE MIRROR.";
-      statusReady = true;
-    } else if (state.voiceStatus === "connecting" || state.voiceStatus === "requesting") {
-      statusTitle = "Connecting voice…";
-      statusSub = "Allow mic if prompted.";
-    } else if (state.voiceStatus === "failed") {
-      statusTitle = "Voice failed";
-      statusSub = state.error || "Tap RETRY VOICE.";
-    } else {
-      statusTitle = "Both ready";
-      statusSub = "Starting voice…";
-    }
+    statusTitle = "Both ready";
+    statusSub = "Talk on WhatsApp. Enter THE MIRROR when ready.";
+    statusReady = true;
   }
 
   app.innerHTML = `
@@ -153,27 +121,22 @@ function renderRoom() {
           <div>
             <strong>${escapeHtml(statusTitle)}</strong>
             <p>${escapeHtml(statusSub)}</p>
-            ${state.iceState ? `<p class="microcopy" style="margin:8px 0 0;text-align:left">ICE: ${escapeHtml(state.iceState)}</p>` : ""}
           </div>
         </div>
       </section>
       ${bothOnline && !state.ready ? `<button class="btn primary ready-btn" id="readyBtn">READY</button>` : ""}
-      ${bothReady && state.voiceStatus === "failed" ? `<button class="btn primary ready-btn" id="retryBtn">RETRY VOICE</button>` : ""}
-      ${showMicLive ? `<button class="btn primary ready-btn" id="startBtn">ENTER THE MIRROR</button>` : ""}
-      ${showMicLive ? `<div class="voice-bar" id="voiceBar"><span class="voice-dot"></span><span>MIC LIVE — TAP TO UNMUTE</span></div>` : ""}
-      <p class="microcopy">${showMicLive ? "Voice first. Then the room." : "Ready up → voice → puzzle."}</p>
+      ${bothReady ? `<button class="btn primary ready-btn" id="startBtn">ENTER THE MIRROR</button>` : ""}
+      <p class="microcopy">Voice = WhatsApp. This app is the puzzle only.</p>
     </main>`;
 
   document.getElementById("leaveBtn").onclick = leaveRoom;
-  document.getElementById("copyBtn").onclick = async () => { try { await navigator.clipboard.writeText(state.roomCode); } catch {} };
+  document.getElementById("copyBtn").onclick = async () => {
+    try { await navigator.clipboard.writeText(state.roomCode); } catch {}
+  };
   const readyBtn = document.getElementById("readyBtn");
   if (readyBtn) readyBtn.onclick = setReady;
-  const retryBtn = document.getElementById("retryBtn");
-  if (retryBtn) retryBtn.onclick = () => { hardResetVoice(); maybeStartVoice(); };
   const startBtn = document.getElementById("startBtn");
   if (startBtn) startBtn.onclick = startMirror;
-  const voiceBar = document.getElementById("voiceBar");
-  if (voiceBar) voiceBar.onclick = () => keepAliveVoice(true);
 }
 
 function cellKey(r, c) { return r + "," + c; }
@@ -198,16 +161,10 @@ function generateMirrorPuzzle(seed) {
   const starts = shuffle(cells).slice(0, SYMBOLS.length);
   const targets = shuffle(cells).slice(0, SYMBOLS.length);
   const objects = SYMBOLS.map((sym, i) => ({
-    id: "o" + i,
-    symbol: sym,
-    r: starts[i][0],
-    c: starts[i][1]
+    id: "o" + i, symbol: sym, r: starts[i][0], c: starts[i][1]
   }));
   const target = SYMBOLS.map((sym, i) => ({
-    id: "o" + i,
-    symbol: sym,
-    r: targets[i][0],
-    c: targets[i][1]
+    id: "o" + i, symbol: sym, r: targets[i][0], c: targets[i][1]
   }));
   return { id: "mirror", title: "THE MIRROR", objects, target, mirroredForOperator: true };
 }
@@ -246,7 +203,7 @@ function renderBoard(objects, opts = {}) {
       const { r: lr, c: lc } = logicalFromDisplay(r, dc, asOperator);
       const obj = map[cellKey(lr, lc)];
       const selected = obj && state.selectedId === obj.id;
-      html += `<button type="button" class="cell ${selected ? "selected" : ""} ${obj ? "filled" : ""}" data-r="${lr}" data-c="${lc}" data-id="${obj ? obj.id : ""}" ${interactive && obj ? "" : "disabled"}>
+      html += `<button type="button" class="cell ${selected ? "selected" : ""} ${obj ? "filled" : ""}" data-id="${obj ? obj.id : ""}" ${interactive && obj ? "" : "disabled"}>
         <span>${obj ? escapeHtml(obj.symbol) : ""}</span>
       </button>`;
     }
@@ -283,8 +240,7 @@ function renderGame() {
           <div class="brand">THE MIRROR · OPERATOR</div>
           <div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div>
         </header>
-        <div class="voice-bar compact" id="voiceBar"><span class="voice-dot"></span><span>MIC LIVE — TAP IF SILENT</span></div>
-        <p class="role-hint">You can move objects. You do <strong>not</strong> see the target.</p>
+        <p class="role-hint">You can move objects. You do <strong>not</strong> see the target. Talk on WhatsApp.</p>
         ${renderBoard(p.objects, { asOperator: true, interactive: true })}
         <div class="pad">
           <button class="pad-btn" data-dir="up">↑</button>
@@ -294,7 +250,7 @@ function renderGame() {
           </div>
           <button class="pad-btn" data-dir="down">↓</button>
         </div>
-        <p class="microcopy">Tap an object, then a direction. Talk to your partner.</p>
+        <p class="microcopy">Tap an object, then a direction.</p>
       </main>`;
   } else {
     app.innerHTML = `
@@ -303,8 +259,7 @@ function renderGame() {
           <div class="brand">THE MIRROR · OBSERVER</div>
           <div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div>
         </header>
-        <div class="voice-bar compact" id="voiceBar"><span class="voice-dot"></span><span>MIC LIVE — TAP IF SILENT</span></div>
-        <p class="role-hint">You see the <strong>TARGET</strong>. You cannot move. Guide them.</p>
+        <p class="role-hint">You see the <strong>TARGET</strong>. You cannot move. Guide them on WhatsApp.</p>
         <span class="eyebrow">TARGET</span>
         ${renderTargetMini(p.target)}
         <span class="eyebrow" style="margin-top:14px">THEIR ROOM (as you see it)</span>
@@ -312,10 +267,6 @@ function renderGame() {
         <p class="microcopy">Describe positions. Their left may not be your left.</p>
       </main>`;
   }
-
-  const voiceBar = document.getElementById("voiceBar");
-  if (voiceBar) voiceBar.onclick = () => keepAliveVoice(true);
-  keepAliveVoice(true);
 
   if (isOperator) {
     document.querySelectorAll(".cell.filled").forEach((el) => {
@@ -373,7 +324,6 @@ function renderResult() {
     </main>`;
   document.getElementById("againBtn").onclick = startMirror;
   document.getElementById("leaveBtn").onclick = leaveRoom;
-  keepAliveVoice(true);
 }
 
 function makeRoomCode() {
@@ -388,7 +338,6 @@ async function createRoom() {
   state.roomCode = makeRoomCode();
   state.role = "host";
   state.isHost = true;
-  state.polite = false;
   state.screen = "room";
   render();
   await connectRoom();
@@ -405,7 +354,6 @@ async function joinRoom() {
   state.roomCode = code;
   state.role = "partner";
   state.isHost = false;
-  state.polite = true;
   state.screen = "room";
   render();
   await connectRoom();
@@ -426,7 +374,6 @@ async function connectRoom() {
       state.players = players;
       state.connected = true;
       if (state.screen === "room" || state.screen === "home") render();
-      maybeStartVoice();
     })
     .on("presence", { event: "join" }, () => {
       state.connected = true;
@@ -435,7 +382,6 @@ async function connectRoom() {
     .on("presence", { event: "leave" }, () => {
       if (state.screen === "room" || state.screen === "home") render();
     })
-    .on("broadcast", { event: "signal" }, ({ payload }) => handleSignal(payload))
     .on("broadcast", { event: "game" }, ({ payload }) => handleGame(payload));
 
   await channel.subscribe(async (status) => {
@@ -464,214 +410,6 @@ async function setReady() {
     });
   }
   render();
-  maybeStartVoice();
-}
-
-function maybeStartVoice() {
-  const partner = state.players.find((p) => p.playerId !== state.playerId);
-  if (!partner || !state.ready || !partner.ready) return;
-  if (state.voiceStarted && state.pc) return;
-  if (state.voiceStatus === "connecting" || state.voiceStatus === "requesting") return;
-  startVoice();
-}
-
-function hardResetVoice() {
-  cleanupPeer();
-  state.voiceStatus = "idle";
-  state.voiceStarted = false;
-  state.iceState = "";
-  state.error = "";
-  if (state.screen === "room") render();
-}
-
-function cleanupPeer() {
-  if (state.pc) {
-    try {
-      state.pc.onicecandidate = null;
-      state.pc.ontrack = null;
-      state.pc.oniceconnectionstatechange = null;
-      state.pc.onconnectionstatechange = null;
-      state.pc.close();
-    } catch {}
-    state.pc = null;
-  }
-  state.makingOffer = false;
-}
-
-async function ensureMic() {
-  if (state.localStream) {
-    state.localStream.getAudioTracks().forEach((t) => { t.enabled = true; });
-    return state.localStream;
-  }
-  state.localStream = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    video: false
-  });
-  return state.localStream;
-}
-
-function keepAliveVoice(forcePlay) {
-  try {
-    if (state.localStream) state.localStream.getAudioTracks().forEach((t) => { t.enabled = true; });
-    if (state.remoteStream) state.remoteStream.getAudioTracks().forEach((t) => { t.enabled = true; });
-    let audio = document.getElementById("remoteAudio");
-    if (!audio) {
-      audio = document.createElement("audio");
-      audio.id = "remoteAudio";
-      audio.autoplay = true;
-      audio.playsInline = true;
-      audio.setAttribute("playsinline", "");
-      document.body.appendChild(audio);
-    }
-    if (state.remoteStream && audio.srcObject !== state.remoteStream) audio.srcObject = state.remoteStream;
-    audio.muted = false;
-    audio.volume = 1;
-    if (forcePlay) {
-      const p = audio.play();
-      if (p && p.catch) p.catch(() => {});
-    }
-  } catch (e) {}
-}
-
-function attachRemoteAudio(stream) {
-  state.remoteStream = stream;
-  keepAliveVoice(true);
-}
-
-function setVoiceConnected() {
-  const was = state.voiceStatus;
-  state.voiceStatus = "connected";
-  state.error = "";
-  keepAliveVoice(true);
-  if (was !== "connected" && (state.screen === "room" || state.screen === "home")) render();
-}
-
-function createPeer() {
-  const pc = new RTCPeerConnection({
-    iceServers: ICE_SERVERS,
-    iceTransportPolicy: "all",
-    bundlePolicy: "max-bundle"
-  });
-  state.pc = pc;
-  if (state.localStream) {
-    state.localStream.getTracks().forEach((track) => pc.addTrack(track, state.localStream));
-  }
-  pc.ontrack = (event) => {
-    attachRemoteAudio(event.streams[0] || new MediaStream([event.track]));
-    setVoiceConnected();
-  };
-  pc.onicecandidate = (event) => {
-    if (!event.candidate || !state.channel) return;
-    state.channel.send({
-      type: "broadcast",
-      event: "signal",
-      payload: {
-        type: "ice",
-        from: state.playerId,
-        candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate
-      }
-    });
-  };
-  pc.oniceconnectionstatechange = () => {
-    const s = pc.iceConnectionState;
-    state.iceState = s;
-    if (s === "connected" || s === "completed") setVoiceConnected();
-    else if (s === "failed") {
-      try { pc.restartIce(); } catch {}
-      if (state.screen === "room") {
-        state.voiceStatus = "failed";
-        state.error = "ICE failed. Tap RETRY VOICE.";
-        render();
-      }
-    }
-  };
-  pc.onconnectionstatechange = () => {
-    if (pc.connectionState === "connected") setVoiceConnected();
-  };
-  return pc;
-}
-
-async function startVoice() {
-  state.voiceStatus = "requesting";
-  state.error = "";
-  state.voiceStarted = true;
-  if (state.screen === "room") render();
-  try {
-    await ensureMic();
-    state.voiceStatus = "connecting";
-    if (state.screen === "room") render();
-    cleanupPeer();
-    createPeer();
-    if (state.isHost) await makeOffer();
-  } catch (err) {
-    state.voiceStatus = "failed";
-    state.voiceStarted = false;
-    state.error = err.name === "NotAllowedError" ? "Mic permission denied." : "Could not access mic.";
-    if (state.screen === "room") render();
-  }
-}
-
-async function makeOffer() {
-  if (!state.pc) return;
-  state.makingOffer = true;
-  try {
-    const offer = await state.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
-    await state.pc.setLocalDescription(offer);
-    state.channel.send({
-      type: "broadcast",
-      event: "signal",
-      payload: {
-        type: "offer",
-        from: state.playerId,
-        sdp: { type: state.pc.localDescription.type, sdp: state.pc.localDescription.sdp }
-      }
-    });
-  } finally {
-    state.makingOffer = false;
-  }
-}
-
-async function handleSignal(payload) {
-  if (!payload || payload.from === state.playerId) return;
-  try {
-    if (payload.type === "offer") {
-      if (!state.localStream) {
-        try { await ensureMic(); } catch {
-          state.voiceStatus = "failed";
-          state.error = "Mic permission denied.";
-          if (state.screen === "room") render();
-          return;
-        }
-      }
-      if (!state.pc) createPeer();
-      const collision = state.makingOffer || state.pc.signalingState !== "stable";
-      if (collision && !state.polite) return;
-      await state.pc.setRemoteDescription(payload.sdp);
-      const answer = await state.pc.createAnswer();
-      await state.pc.setLocalDescription(answer);
-      state.channel.send({
-        type: "broadcast",
-        event: "signal",
-        payload: {
-          type: "answer",
-          from: state.playerId,
-          sdp: { type: state.pc.localDescription.type, sdp: state.pc.localDescription.sdp }
-        }
-      });
-      state.voiceStatus = "connecting";
-      if (state.screen === "room") render();
-    } else if (payload.type === "answer") {
-      if (state.pc && state.pc.signalingState === "have-local-offer") {
-        await state.pc.setRemoteDescription(payload.sdp);
-        state.voiceStatus = "connecting";
-        if (state.screen === "room") render();
-      }
-    } else if (payload.type === "ice" && payload.candidate && state.pc) {
-      try { await state.pc.addIceCandidate(payload.candidate); } catch (e) {}
-    }
-  } catch (err) {
-    console.error(err);
-  }
 }
 
 function sendGame(payload) {
@@ -679,7 +417,6 @@ function sendGame(payload) {
 }
 
 function startMirror() {
-  keepAliveVoice(true);
   const seed = state.roomCode + String(Date.now()).slice(-4);
   const puzzle = generateMirrorPuzzle(seed);
   const startedAt = Date.now();
@@ -704,7 +441,6 @@ function beginRound(puzzle, startedAt) {
   state.error = "";
   state.screen = "game";
   render();
-  keepAliveVoice(true);
   state.timerId = setInterval(() => {
     state.remaining = Math.max(0, ROUND_SECONDS - Math.floor((Date.now() - state.startedAt) / 1000));
     if (state.screen === "game") {
@@ -716,7 +452,6 @@ function beginRound(puzzle, startedAt) {
           String(state.remaining % 60).padStart(2, "0");
         el.classList.toggle("urgent", state.remaining <= 15);
       }
-      if (state.remaining % 4 === 0) keepAliveVoice(false);
     }
     if (state.remaining <= 0) endRound("timeout");
   }, 250);
@@ -754,13 +489,6 @@ function handleGame(payload) {
 
 async function leaveRoom() {
   clearInterval(state.timerId);
-  cleanupPeer();
-  if (state.localStream) {
-    state.localStream.getTracks().forEach((t) => t.stop());
-    state.localStream = null;
-  }
-  const audio = document.getElementById("remoteAudio");
-  if (audio) audio.remove();
   if (state.channel) {
     await state.channel.unsubscribe();
     state.channel = null;
@@ -773,14 +501,9 @@ async function leaveRoom() {
     connected: false,
     error: "",
     ready: false,
-    voiceStatus: "idle",
-    iceState: "",
     isHost: false,
-    remoteStream: null,
-    makingOffer: false,
     puzzle: null,
     result: "",
-    voiceStarted: false,
     selectedId: null
   });
   render();
