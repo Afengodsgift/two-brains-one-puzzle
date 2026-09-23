@@ -91,6 +91,15 @@ button, input { font: inherit; }
 .role-badge { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; letter-spacing: .16em; font-size: 11px; margin-bottom: 14px; }
 .count-num { font-size: 96px; font-weight: 300; letter-spacing: -.04em; animation: pulse 0.7s ease; }
 @keyframes pulse { from { opacity: .3; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+.rot-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0 16px; }
+.rot-piece { border: 1px solid var(--line); background: var(--panel); border-radius: 16px; padding: 18px 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--white); cursor: pointer; }
+.rot-piece.locked { cursor: default; }
+.rot-piece.selected { border-color: rgba(156,255,189,.55); box-shadow: 0 0 0 1px rgba(156,255,189,.25); }
+.rot-piece.matched { border-color: rgba(156,255,189,.35); background: rgba(156,255,189,.06); }
+.rot-glyph { font-size: 36px; line-height: 1; transition: transform 0.25s ease; display: block; }
+.rot-dir { font-size: 12px; letter-spacing: .16em; color: #888; }
+.rot-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.rotation-theme .role-hint { color: #a8a8a8; }
 @media (min-width: 700px) {
   .shell { padding-left: 32px; padding-right: 32px; max-width: 520px; margin: 0 auto; }
   .grid { max-width: 300px; }
