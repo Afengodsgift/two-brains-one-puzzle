@@ -102,7 +102,20 @@ const CHAPTERS = [
         },
         unlocked: true
       },
-      { id: "wrong-piece", title: "THE WRONG PIECE", number: "07", type: null, unlocked: false }
+      {
+        id: "collision",
+        title: "THE COLLISION",
+        number: "07",
+        type: "collision",
+        tagline: "You see empty space. They see the walls.",
+        completeLine: "You walked a path neither could see alone.",
+        roles: { a: "SEER", b: "WALKER" },
+        roleHint: {
+          SEER: "You see the invisible walls and the goal. You cannot move. Guide them.",
+          WALKER: "You see a clean room. Move carefully. Ask before you walk."
+        },
+        unlocked: true
+      }
     ]
   },
   {
@@ -164,7 +177,7 @@ const state = {
   selectedLevelId: "mirror", puzzleRole: null, puzzle: null, remaining: ROUND_SECONDS,
   startedAt: 0, timerId: null, result: "", selectedId: null, elapsed: 0, countdown: 0,
   introLevel: null, flashPhase: "", flashReplayUsed: false, trayId: null,
-  mapAnimating: false, mapMsg: "", bbSelectedToken: null, bbPredictMode: false, bbPrediction: []
+  mapAnimating: false, mapMsg: "", bbSelectedToken: null, bbPredictMode: false, bbPrediction: [], colMsg: ""
 };
 
 function escapeHtml(v = "") {
@@ -515,6 +528,65 @@ function renderTokenChip(t, extra = "") {
   return `<span class="bb-token tone-${t.color} ${extra}" data-id="${t.id}"><span class="bb-shape">${escapeHtml(t.shape)}</span><span class="bb-meta">${escapeHtml(t.label)} · ${t.temp === "warm" ? "WARM" : "COLD"}</span></span>`;
 }
 
+
+function generateCollision(seed) {
+  const rand = seedRand(seed);
+  const size = 5;
+  // Build walls: random cells except start and goal
+  const walls = new Set();
+  const start = { r: size - 1, c: 0 };
+  const goal = { r: 0, c: size - 1 };
+  const sk = (r, c) => r + "," + c;
+  // Place ~8-10 wall cells ensuring a path exists via simple maze-ish placement
+  let attempts = 0;
+  while (walls.size < 9 && attempts < 80) {
+    attempts++;
+    const r = Math.floor(rand() * size);
+    const c = Math.floor(rand() * size);
+    if ((r === start.r && c === start.c) || (r === goal.r && c === goal.c)) continue;
+    walls.add(sk(r, c));
+  }
+  // Ensure path with BFS; if blocked, clear some walls
+  function hasPath() {
+    const q = [[start.r, start.c]];
+    const seen = new Set([sk(start.r, start.c)]);
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    while (q.length) {
+      const [r, c] = q.shift();
+      if (r === goal.r && c === goal.c) return true;
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc;
+        const k = sk(nr, nc);
+        if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+        if (walls.has(k) || seen.has(k)) continue;
+        seen.add(k); q.push([nr, nc]);
+      }
+    }
+    return false;
+  }
+  if (!hasPath()) {
+    // remove walls until path exists
+    for (const w of [...walls]) {
+      walls.delete(w);
+      if (hasPath()) break;
+    }
+  }
+  return {
+    type: "collision",
+    size,
+    walls: [...walls],
+    start: { ...start },
+    goal: { ...goal },
+    pos: { ...start },
+    bumped: null
+  };
+}
+
+function colKey(r, c) { return r + "," + c; }
+function colIsWall(puzzle, r, c) {
+  return (puzzle.walls || []).includes(colKey(r, c));
+}
+
 function startLevelRound(mode) {
   const level = getLevel(state.selectedLevelId);
   if (!level || !level.type) return;
@@ -526,6 +598,7 @@ function startLevelRound(mode) {
   else if (level.type === "flash") board = generateFlash(seed);
   else if (level.type === "map") board = generateMap();
   else if (level.type === "blackbox") board = generateBlackBox(seed);
+  else if (level.type === "collision") board = generateCollision(seed);
   else board = generateMirror(seed);
   const payload = {
     type: "start", from: state.playerId, levelId: level.id, puzzleType: level.type,
@@ -553,6 +626,7 @@ function applyStart(payload) {
   state.bbSelectedToken = null;
   state.bbPredictMode = false;
   state.bbPrediction = [];
+  state.colMsg = "";
   state.screen = "intro";
   render();
   setTimeout(() => {
@@ -856,7 +930,61 @@ function renderGame() {
   const ss = String(state.remaining % 60).padStart(2, "0");
   const title = p.title || "PUZZLE";
 
-  if (p.type === "blackbox") {
+  if (p.type === "collision") {
+    const isSeer = state.puzzleRole === "SEER";
+    const size = p.size || 5;
+    const walls = new Set(p.walls || []);
+    let grid = `<div class="col-grid" style="grid-template-columns:repeat(${size},1fr)">`;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const k = colKey(r, c);
+        const isWall = walls.has(k);
+        const isPos = p.pos && p.pos.r === r && p.pos.c === c;
+        const isGoal = p.goal && p.goal.r === r && p.goal.c === c;
+        const isStart = p.start && p.start.r === r && p.start.c === c;
+        let cls = "col-cell";
+        if (isSeer && isWall) cls += " wall";
+        if (isPos) cls += " here";
+        if (isGoal) cls += " goal";
+        if (isStart && !isPos) cls += " start";
+        if (p.bumped && p.bumped.r === r && p.bumped.c === c) cls += " bump";
+        let inner = "";
+        if (isPos) inner = `<span class="col-walker">●</span>`;
+        else if (isSeer && isWall) inner = `<span class="col-wall">■</span>`;
+        else if (isGoal) inner = `<span class="col-goal">★</span>`;
+        grid += `<div class="${cls}">${inner}</div>`;
+      }
+    }
+    grid += `</div>`;
+    if (isSeer) {
+      app.innerHTML = `<main class="shell game col-theme"><header class="topbar"><div class="brand">COLLISION · SEER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Walls are real. They cannot see them. Guide the walker to ★.</p>
+        ${grid}
+        <p class="microcopy">Dark blocks = walls. ★ = goal. ● = them.</p>
+      </main>`;
+    } else {
+      app.innerHTML = `<main class="shell game col-theme"><header class="topbar"><div class="brand">COLLISION · WALKER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">The room looks empty. Ask before you move.</p>
+        ${state.colMsg ? `<p class="col-alert">${escapeHtml(state.colMsg)}</p>` : ""}
+        ${grid}
+        <div class="col-pad">
+          <button class="btn col-dir" data-dir="n">↑</button>
+          <div class="col-pad-mid">
+            <button class="btn col-dir" data-dir="w">←</button>
+            <button class="btn col-dir" data-dir="e">→</button>
+          </div>
+          <button class="btn col-dir" data-dir="s">↓</button>
+        </div>
+        <p class="microcopy">★ is the goal. Walls will stop you.</p>
+      </main>`;
+      document.querySelectorAll(".col-dir").forEach((btn) => {
+        btn.onclick = () => colMove(btn.dataset.dir);
+      });
+    }
+    return;
+  }
+
+    if (p.type === "blackbox") {
     const isLoader = state.puzzleRole === "LOADER";
     const trials = p.trialsLeft ?? 0;
     if (isLoader) {
@@ -1121,6 +1249,56 @@ function applyBbPredict(prediction) {
   render();
 }
 
+
+function colMove(dir) {
+  if (!state.puzzle || state.puzzle.type !== "collision" || state.puzzleRole !== "WALKER") return;
+  const d = { n: [-1, 0], s: [1, 0], w: [0, -1], e: [0, 1] }[dir];
+  if (!d) return;
+  const size = state.puzzle.size || 5;
+  const nr = state.puzzle.pos.r + d[0];
+  const nc = state.puzzle.pos.c + d[1];
+  if (nr < 0 || nr >= size || nc < 0 || nc >= size) {
+    state.colMsg = "EDGE — can't go that way";
+    state.puzzle.bumped = null;
+    render();
+    return;
+  }
+  if (colIsWall(state.puzzle, nr, nc)) {
+    state.colMsg = "WALL — something stopped you";
+    state.puzzle.bumped = { r: nr, c: nc };
+    sendGame({ type: "col_bump", from: state.playerId, pos: state.puzzle.pos, bumped: state.puzzle.bumped, msg: state.colMsg });
+    render();
+    return;
+  }
+  state.puzzle.pos = { r: nr, c: nc };
+  state.puzzle.bumped = null;
+  state.colMsg = "";
+  sendGame({ type: "col_move", from: state.playerId, pos: state.puzzle.pos });
+  if (state.puzzle.goal && nr === state.puzzle.goal.r && nc === state.puzzle.goal.c) {
+    endRound("win");
+    return;
+  }
+  render();
+}
+function applyColMove(payload) {
+  if (!state.puzzle || state.puzzle.type !== "collision") return;
+  if (payload.pos) state.puzzle.pos = payload.pos;
+  state.puzzle.bumped = null;
+  state.colMsg = "";
+  if (state.puzzle.goal && state.puzzle.pos.r === state.puzzle.goal.r && state.puzzle.pos.c === state.puzzle.goal.c) {
+    endRound("win");
+    return;
+  }
+  render();
+}
+function applyColBump(payload) {
+  if (!state.puzzle || state.puzzle.type !== "collision") return;
+  if (payload.pos) state.puzzle.pos = payload.pos;
+  state.puzzle.bumped = payload.bumped || null;
+  state.colMsg = payload.msg || "WALL";
+  render();
+}
+
 function endRound(result) {
   if (state.screen === "result") return;
   clearInterval(state.timerId); state.timerId = null;
@@ -1194,6 +1372,8 @@ function handleGame(payload) {
   else if (payload.type === "map_move") applyMapMove(payload);
   else if (payload.type === "bb_run") applyBbRun(payload.slots);
   else if (payload.type === "bb_predict") applyBbPredict(payload.prediction);
+  else if (payload.type === "col_move") applyColMove(payload);
+  else if (payload.type === "col_bump") applyColBump(payload);
   else if (payload.type === "win") { if (payload.levelId) markComplete(payload.levelId); endRound("win"); }
   else if (payload.type === "timeout") endRound("timeout");
   else if (payload.type === "request_replay" && state.isHost) startLevelRound(payload.mode || "random");
@@ -1204,7 +1384,7 @@ async function leaveRoom() {
   Object.assign(state, {
     screen: "home", roomCode: "", roomRole: "", players: [], connected: false, error: "",
     ready: false, isHost: false, puzzle: null, result: "", selectedId: null, puzzleRole: null,
-    introLevel: null, flashPhase: "", flashReplayUsed: false, trayId: null, mapAnimating: false, mapMsg: "", bbSelectedToken: null, bbPredictMode: false, bbPrediction: []
+    introLevel: null, flashPhase: "", flashReplayUsed: false, trayId: null, mapAnimating: false, mapMsg: "", bbSelectedToken: null, bbPredictMode: false, bbPrediction: [], colMsg: ""
   });
   render();
 }
