@@ -938,3 +938,80 @@ button.flash-cell:disabled { cursor: default; }
   min-height: 52px;
   border-radius: 12px;
 }
+
+/* ========== THE SWITCH ========== */
+.sw-theme {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 180, 60, 0.1), transparent 50%),
+    radial-gradient(ellipse at 0% 100%, rgba(60, 80, 100, 0.12), transparent 45%),
+    #0a0a0c;
+}
+.sw-theme .brand { color: #c8a878; }
+.sw-theme .timer { color: #e0d0b0; }
+.sw-theme .role-hint { color: #a09070; }
+.sw-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+  position: relative;
+  z-index: 2;
+}
+.sw-toggle {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  border-radius: 16px;
+  padding: 22px 12px;
+  color: #aaa;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font: inherit;
+  min-height: 100px;
+  transition: border-color .2s, background .2s;
+}
+.sw-toggle.on {
+  border-color: rgba(255, 180, 60, 0.5);
+  background: rgba(255, 160, 40, 0.12);
+  color: #ffc857;
+  box-shadow: 0 0 20px rgba(255, 160, 40, 0.15);
+}
+.sw-num { font-size: 28px; font-weight: 300; letter-spacing: 0.08em; }
+.sw-state { font-size: 10px; letter-spacing: 0.2em; }
+.sw-panel {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+  position: relative;
+  z-index: 2;
+}
+.sw-light {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.35);
+}
+.sw-light span { font-size: 10px; letter-spacing: 0.18em; color: #666; }
+.sw-light strong { font-size: 13px; letter-spacing: 0.1em; color: #888; }
+.sw-light.ok { border-color: rgba(156, 255, 189, 0.3); }
+.sw-light.ok strong { color: #9cffbd; }
+.sw-light.bad { border-color: rgba(255, 100, 100, 0.4); background: rgba(80, 20, 20, 0.3); }
+.sw-light.bad strong { color: #ff8f8f; }
+
+/* ========== THE LIAR ========== */
+.liar-theme {
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(180, 60, 80, 0.12), transparent 50%),
+    radial-gradient(ellipse at 80% 90%, rgba(80, 40, 100, 0.1), transparent 45%),
+    #0c080a;
+}
+.liar-theme .brand { color: #d090a0; }
+.liar-theme .timer { color: #e8c0c8; }
+.liar-theme .role-hint { color: #b08090; }
+.liar-theme .eyebrow { color: #805060; }
