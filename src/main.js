@@ -137,7 +137,20 @@ const CHAPTERS = [
         },
         unlocked: true
       },
-      { id: "last-move", title: "THE LAST MOVE", number: "08", type: null, unlocked: false }
+      {
+        id: "onebody",
+        title: "THE ONE BODY",
+        number: "08",
+        type: "onebody",
+        tagline: "Two minds. One body.",
+        completeLine: "You moved as one.",
+        roles: { a: "LEGS", b: "ARMS" },
+        roleHint: {
+          LEGS: "You move the body. You cannot press buttons.",
+          ARMS: "You press buttons when the body stands on them. You cannot move."
+        },
+        unlocked: true
+      }
     ]
   }
 ];
@@ -177,7 +190,7 @@ const state = {
   selectedLevelId: "mirror", puzzleRole: null, puzzle: null, remaining: ROUND_SECONDS,
   startedAt: 0, timerId: null, result: "", selectedId: null, elapsed: 0, countdown: 0,
   introLevel: null, flashPhase: "", flashReplayUsed: false, trayId: null,
-  mapAnimating: false, mapMsg: "", bbSelectedToken: null, bbPredictMode: false, bbPrediction: [], colMsg: ""
+  mapAnimating: false, mapMsg: "", bbSelectedToken: null, bbPredictMode: false, bbPrediction: [], colMsg: "", bodyMsg: ""
 };
 
 function escapeHtml(v = "") {
@@ -587,6 +600,55 @@ function colIsWall(puzzle, r, c) {
   return (puzzle.walls || []).includes(colKey(r, c));
 }
 
+
+function generateOneBody(seed) {
+  const rand = seedRand(seed);
+  const size = 5;
+  // Layout: start bottom-left, exit top-right
+  // Gates block cells; buttons open gates
+  // gateId -> button cell must be stood on and pressed
+  const start = { r: 4, c: 0 };
+  const exit = { r: 0, c: 4 };
+  // Two gates and two buttons
+  // Gate A blocks (2,2) and (2,3) - horizontal barrier
+  // Button A at (4,2)
+  // Gate B blocks (1,3) - Button B at (3,4)
+  const buttons = [
+    { id: "b1", r: 4, c: 2, gateId: "g1", on: false },
+    { id: "b2", r: 2, c: 0, gateId: "g2", on: false }
+  ];
+  const gates = [
+    { id: "g1", cells: ["2,1", "2,2", "2,3"], open: false },
+    { id: "g2", cells: ["1,2", "1,3", "0,3"], open: false }
+  ];
+  // Shuffle button positions a bit with seed for variety
+  if (rand() > 0.5) {
+    buttons[0] = { id: "b1", r: 4, c: 3, gateId: "g1", on: false };
+  }
+  if (rand() > 0.5) {
+    buttons[1] = { id: "b2", r: 3, c: 0, gateId: "g2", on: false };
+  }
+  return {
+    type: "onebody",
+    size,
+    pos: { ...start },
+    start: { ...start },
+    exit: { ...exit },
+    buttons,
+    gates,
+    lastPress: null
+  };
+}
+
+function bodyGateBlocks(puzzle, r, c) {
+  const k = r + "," + c;
+  return (puzzle.gates || []).some((g) => !g.open && (g.cells || []).includes(k));
+}
+
+function bodyButtonAt(puzzle, r, c) {
+  return (puzzle.buttons || []).find((b) => b.r === r && b.c === c);
+}
+
 function startLevelRound(mode) {
   const level = getLevel(state.selectedLevelId);
   if (!level || !level.type) return;
@@ -599,6 +661,7 @@ function startLevelRound(mode) {
   else if (level.type === "map") board = generateMap();
   else if (level.type === "blackbox") board = generateBlackBox(seed);
   else if (level.type === "collision") board = generateCollision(seed);
+  else if (level.type === "onebody") board = generateOneBody(seed);
   else board = generateMirror(seed);
   const payload = {
     type: "start", from: state.playerId, levelId: level.id, puzzleType: level.type,
@@ -627,6 +690,7 @@ function applyStart(payload) {
   state.bbPredictMode = false;
   state.bbPrediction = [];
   state.colMsg = "";
+  state.bodyMsg = "";
   state.screen = "intro";
   render();
   setTimeout(() => {
@@ -930,7 +994,71 @@ function renderGame() {
   const ss = String(state.remaining % 60).padStart(2, "0");
   const title = p.title || "PUZZLE";
 
-  if (p.type === "collision") {
+  if (p.type === "onebody") {
+    const isLegs = state.puzzleRole === "LEGS";
+    const size = p.size || 5;
+    const gateSet = new Set();
+    (p.gates || []).forEach((g) => {
+      if (!g.open) (g.cells || []).forEach((k) => gateSet.add(k));
+    });
+    let grid = `<div class="body-grid" style="grid-template-columns:repeat(${size},1fr)">`;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const k = r + "," + c;
+        const isPos = p.pos && p.pos.r === r && p.pos.c === c;
+        const isExit = p.exit && p.exit.r === r && p.exit.c === c;
+        const btn = bodyButtonAt(p, r, c);
+        const isGate = gateSet.has(k);
+        let cls = "body-cell";
+        if (isGate) cls += " gate";
+        if (btn) cls += btn.on ? " btn-on" : " btn-off";
+        if (isPos) cls += " here";
+        if (isExit) cls += " exit";
+        let inner = "";
+        if (isPos) inner = `<span class="body-char">◉</span>`;
+        else if (isExit) inner = `<span class="body-exit">▣</span>`;
+        else if (btn) inner = `<span class="body-btn">${btn.on ? "●" : "○"}</span>`;
+        else if (isGate) inner = `<span class="body-gate">═</span>`;
+        grid += `<div class="${cls}">${inner}</div>`;
+      }
+    }
+    grid += `</div>`;
+    const onBtn = bodyButtonAt(p, p.pos.r, p.pos.c);
+    if (isLegs) {
+      app.innerHTML = `<main class="shell game body-theme"><header class="topbar"><div class="brand">ONE BODY · LEGS</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">You move. You cannot press. Stand on ○ so Arms can open gates.</p>
+        ${state.bodyMsg ? `<p class="body-alert">${escapeHtml(state.bodyMsg)}</p>` : ""}
+        ${grid}
+        <div class="body-pad">
+          <button class="btn body-dir" data-dir="n">↑</button>
+          <div class="body-pad-mid">
+            <button class="btn body-dir" data-dir="w">←</button>
+            <button class="btn body-dir" data-dir="e">→</button>
+          </div>
+          <button class="btn body-dir" data-dir="s">↓</button>
+        </div>
+        <p class="microcopy">═ closed gate · ○ button · ▣ exit</p>
+      </main>`;
+      document.querySelectorAll(".body-dir").forEach((btn) => {
+        btn.onclick = () => bodyMove(btn.dataset.dir);
+      });
+    } else {
+      app.innerHTML = `<main class="shell game body-theme"><header class="topbar"><div class="brand">ONE BODY · ARMS</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">You press. You cannot walk. When the body is on ○, press.</p>
+        ${state.bodyMsg ? `<p class="body-alert">${escapeHtml(state.bodyMsg)}</p>` : ""}
+        ${grid}
+        <button class="btn primary body-press" id="bodyPressBtn" ${onBtn && !onBtn.on ? "" : "disabled"}>
+          ${onBtn && !onBtn.on ? "PRESS BUTTON" : onBtn && onBtn.on ? "ALREADY ON" : "NOT ON A BUTTON"}
+        </button>
+        <p class="microcopy">Tell Legs where to stand. Then press.</p>
+      </main>`;
+      const pb = document.getElementById("bodyPressBtn");
+      if (pb && !pb.disabled) pb.onclick = () => bodyPress();
+    }
+    return;
+  }
+
+    if (p.type === "collision") {
     const isSeer = state.puzzleRole === "SEER";
     const size = p.size || 5;
     const walls = new Set(p.walls || []);
@@ -1299,6 +1427,73 @@ function applyColBump(payload) {
   render();
 }
 
+
+function bodyMove(dir) {
+  if (!state.puzzle || state.puzzle.type !== "onebody" || state.puzzleRole !== "LEGS") return;
+  const d = { n: [-1, 0], s: [1, 0], w: [0, -1], e: [0, 1] }[dir];
+  if (!d) return;
+  const size = state.puzzle.size || 5;
+  const nr = state.puzzle.pos.r + d[0];
+  const nc = state.puzzle.pos.c + d[1];
+  if (nr < 0 || nr >= size || nc < 0 || nc >= size) {
+    state.bodyMsg = "EDGE";
+    render();
+    return;
+  }
+  if (bodyGateBlocks(state.puzzle, nr, nc)) {
+    state.bodyMsg = "GATE — still closed";
+    sendGame({ type: "body_sync", from: state.playerId, pos: state.puzzle.pos, buttons: state.puzzle.buttons, gates: state.puzzle.gates, msg: state.bodyMsg });
+    render();
+    return;
+  }
+  state.puzzle.pos = { r: nr, c: nc };
+  state.bodyMsg = "";
+  sendGame({ type: "body_sync", from: state.playerId, pos: state.puzzle.pos, buttons: state.puzzle.buttons, gates: state.puzzle.gates, msg: "" });
+  if (state.puzzle.exit && nr === state.puzzle.exit.r && nc === state.puzzle.exit.c) {
+    // need all gates open? or just reach exit
+    const allOpen = (state.puzzle.gates || []).every((g) => g.open);
+    if (allOpen) {
+      endRound("win");
+      return;
+    }
+    state.bodyMsg = "EXIT LOCKED — open all gates";
+  }
+  render();
+}
+function bodyPress() {
+  if (!state.puzzle || state.puzzle.type !== "onebody" || state.puzzleRole !== "ARMS") return;
+  const btn = bodyButtonAt(state.puzzle, state.puzzle.pos.r, state.puzzle.pos.c);
+  if (!btn || btn.on) return;
+  btn.on = true;
+  const gate = (state.puzzle.gates || []).find((g) => g.id === btn.gateId);
+  if (gate) gate.open = true;
+  state.bodyMsg = "GATE OPEN";
+  state.puzzle.lastPress = btn.id;
+  sendGame({ type: "body_sync", from: state.playerId, pos: state.puzzle.pos, buttons: state.puzzle.buttons, gates: state.puzzle.gates, msg: state.bodyMsg });
+  // Check win if already on exit
+  if (state.puzzle.exit && state.puzzle.pos.r === state.puzzle.exit.r && state.puzzle.pos.c === state.puzzle.exit.c) {
+    if ((state.puzzle.gates || []).every((g) => g.open)) {
+      endRound("win");
+      return;
+    }
+  }
+  render();
+}
+function applyBodySync(payload) {
+  if (!state.puzzle || state.puzzle.type !== "onebody") return;
+  if (payload.pos) state.puzzle.pos = payload.pos;
+  if (payload.buttons) state.puzzle.buttons = payload.buttons;
+  if (payload.gates) state.puzzle.gates = payload.gates;
+  state.bodyMsg = payload.msg || "";
+  if (state.puzzle.exit && state.puzzle.pos.r === state.puzzle.exit.r && state.puzzle.pos.c === state.puzzle.exit.c) {
+    if ((state.puzzle.gates || []).every((g) => g.open)) {
+      endRound("win");
+      return;
+    }
+  }
+  render();
+}
+
 function endRound(result) {
   if (state.screen === "result") return;
   clearInterval(state.timerId); state.timerId = null;
@@ -1374,6 +1569,7 @@ function handleGame(payload) {
   else if (payload.type === "bb_predict") applyBbPredict(payload.prediction);
   else if (payload.type === "col_move") applyColMove(payload);
   else if (payload.type === "col_bump") applyColBump(payload);
+  else if (payload.type === "body_sync") applyBodySync(payload);
   else if (payload.type === "win") { if (payload.levelId) markComplete(payload.levelId); endRound("win"); }
   else if (payload.type === "timeout") endRound("timeout");
   else if (payload.type === "request_replay" && state.isHost) startLevelRound(payload.mode || "random");
