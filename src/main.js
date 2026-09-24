@@ -1635,7 +1635,8 @@ function renderGame() {
     const onBtn = bodyButtonAt(p, p.pos.r, p.pos.c);
     if (isLegs) {
       app.innerHTML = `<main class="shell game body-theme"><header class="topbar"><div class="brand">ONE BODY · LEGS</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
-        <p class="role-hint">You move. You cannot press. Stand on ○ so Arms can open gates.</p>
+        <p class="role-hint">You are the legs of one body. Walk onto buttons so Arms can act.</p>
+        <div class="scene-title">SHARED BODY</div>
         ${state.bodyMsg ? `<p class="body-alert">${escapeHtml(state.bodyMsg)}</p>` : ""}
         ${grid}
         <div class="body-pad">
@@ -1653,7 +1654,8 @@ function renderGame() {
       });
     } else {
       app.innerHTML = `<main class="shell game body-theme"><header class="topbar"><div class="brand">ONE BODY · ARMS</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
-        <p class="role-hint">You press. You cannot walk. When the body is on ○, press.</p>
+        <p class="role-hint">You are the hands. Press when the body stands on a button.</p>
+        <div class="scene-title">SHARED BODY</div>
         ${state.bodyMsg ? `<p class="body-alert">${escapeHtml(state.bodyMsg)}</p>` : ""}
         ${grid}
         <button class="btn primary body-press" id="bodyPressBtn" ${onBtn && !onBtn.on ? "" : "disabled"}>
@@ -1695,13 +1697,15 @@ function renderGame() {
     grid += `</div>`;
     if (isSeer) {
       app.innerHTML = `<main class="shell game col-theme"><header class="topbar"><div class="brand">COLLISION · SEER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
-        <p class="role-hint">Walls are real. They cannot see them. Guide the walker to ★.</p>
+        <p class="role-hint">An empty hall — only you see the barriers.</p>
+        <div class="scene-title">INVISIBLE ARCHITECTURE</div>
         ${grid}
         <p class="microcopy">Dark blocks = walls. ★ = goal. ● = them.</p>
       </main>`;
     } else {
       app.innerHTML = `<main class="shell game col-theme"><header class="topbar"><div class="brand">COLLISION · WALKER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
-        <p class="role-hint">The room looks empty. Ask before you move.</p>
+        <p class="role-hint">The hall looks empty. Ask before every step.</p>
+        <div class="scene-title">OPEN FLOOR</div>
         ${state.colMsg ? `<p class="col-alert">${escapeHtml(state.colMsg)}</p>` : ""}
         ${grid}
         <div class="col-pad">
@@ -1733,7 +1737,8 @@ function renderGame() {
         return `<button type="button" class="bb-tray-item ${used ? "used" : ""} ${state.bbSelectedToken === t.id ? "selected" : ""}" data-tid="${t.id}" ${used ? "disabled" : ""}>${renderTokenChip(t)}</button>`;
       }).join("");
       app.innerHTML = `<main class="shell game bb-theme bb-loader"><header class="topbar"><div class="brand">BLACK BOX · LOADER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
-        <p class="role-hint">Place tokens in order. RUN the machine. You never see the output.</p>
+        <p class="role-hint">Feed the machine. You will never see what comes out.</p>
+        <div class="scene-title">INTAKE BAY</div>
         <div class="bb-trials">TRIALS LEFT · <strong>${trials}</strong></div>
         <span class="eyebrow">INPUT SLOTS</span>
         <div class="bb-slots">${slotsHtml}</div>
@@ -1782,7 +1787,8 @@ function renderGame() {
       return `<button type="button" class="bb-slot ${s ? "filled" : ""}" data-pi="${i}">${s ? renderTokenChip(s) : `<span class="bb-slot-num">${i + 1}</span>`}</button>`;
     }).join("");
     app.innerHTML = `<main class="shell game bb-theme bb-watcher"><header class="topbar"><div class="brand">BLACK BOX · WATCHER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
-      <p class="role-hint">You only see outputs. Form a hypothesis. Lock a prediction to prove it.</p>
+      <p class="role-hint">Analysis desk. Watch what the machine returns. Prove the law.</p>
+      <div class="scene-title">OUTPUT ANALYSIS</div>
       <div class="bb-trials">TRIALS LEFT · <strong>${trials}</strong></div>
       <span class="eyebrow">LAST OUTPUT</span>
       <div class="bb-output">${outHtml}</div>
@@ -1891,11 +1897,11 @@ function renderGame() {
   }
 
   if (isOp) {
-    app.innerHTML = `<main class="shell game"><header class="topbar"><div class="brand">${escapeHtml(title)} · OPERATOR</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header><p class="role-hint">Move objects. No target. Talk outside the app.</p>${renderMirrorBoard(p.objects, { asOperator: true, interactive: true })}<div class="pad"><button class="pad-btn" data-dir="up">↑</button><div class="pad-mid"><button class="pad-btn" data-dir="left">←</button><button class="pad-btn" data-dir="right">→</button></div><button class="pad-btn" data-dir="down">↓</button></div><p class="microcopy">Tap object, then direction.</p></main>`;
+    app.innerHTML = `<main class="shell game"><header class="topbar"><div class="brand">${escapeHtml(title)} · OPERATOR</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header><p class="role-hint">You stand in a mirrored room. Move objects. You cannot see the target.</p><div class="scene mirror-scene"><div class="scene-title">MIRRORED ROOM</div>${renderMirrorBoard(p.objects, { asOperator: true, interactive: true })}</div><div class="pad"><button class="pad-btn" data-dir="up">↑</button><div class="pad-mid"><button class="pad-btn" data-dir="left">←</button><button class="pad-btn" data-dir="right">→</button></div><button class="pad-btn" data-dir="down">↓</button></div><p class="microcopy">Tap object, then direction.</p></main>`;
     document.querySelectorAll(".cell.filled").forEach((el) => { el.onclick = () => { state.selectedId = el.dataset.id; render(); }; });
     document.querySelectorAll(".pad-btn").forEach((btn) => { btn.onclick = () => tryMirrorMove(btn.dataset.dir); });
   } else {
-    app.innerHTML = `<main class="shell game"><header class="topbar"><div class="brand">${escapeHtml(title)} · OBSERVER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header><p class="role-hint">You see the target. Guide them. You cannot move.</p><span class="eyebrow">TARGET</span>${renderTargetMini(p.target)}<span class="eyebrow" style="margin-top:14px">ROOM</span>${renderMirrorBoard(p.objects, { asOperator: false, interactive: false })}<p class="microcopy">Their left may not be your left.</p></main>`;
+    app.innerHTML = `<main class="shell game"><header class="topbar"><div class="brand">${escapeHtml(title)} · OBSERVER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header><p class="role-hint">You see the target. Guide them. You cannot move.</p><div class="scene mirror-scene"><div class="scene-title">TARGET LAYOUT</div>${renderTargetMini(p.target)}</div><div class="scene mirror-scene"><div class="scene-title">LIVE ROOM</div>${renderMirrorBoard(p.objects, { asOperator: false, interactive: false })}</div><p class="microcopy">Their left may not be your left.</p></main>`;
   }
 }
 
