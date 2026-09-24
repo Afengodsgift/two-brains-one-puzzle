@@ -840,3 +840,101 @@ button.flash-cell:disabled { cursor: default; }
   border-radius: 12px;
   letter-spacing: 0;
 }
+
+/* ========== THE ONE BODY ========== */
+.body-theme {
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(255, 120, 80, 0.1), transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(80, 200, 160, 0.08), transparent 45%),
+    #0c0a08;
+}
+.body-theme .brand { color: #e0a888; }
+.body-theme .timer { color: #f0d0b8; }
+.body-theme .role-hint { color: #b09880; }
+.body-grid {
+  display: grid;
+  gap: 6px;
+  max-width: 320px;
+  margin: 12px auto;
+  position: relative;
+  z-index: 2;
+}
+.body-cell {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+}
+.body-cell.gate {
+  background: linear-gradient(160deg, rgba(80, 40, 30, 0.6), rgba(30, 15, 10, 0.9));
+  border-color: rgba(255, 100, 60, 0.35);
+}
+.body-gate {
+  color: #ff6b4a;
+  font-size: 16px;
+  letter-spacing: -2px;
+}
+.body-cell.btn-off {
+  border-color: rgba(100, 220, 180, 0.3);
+  background: rgba(60, 120, 100, 0.15);
+}
+.body-cell.btn-on {
+  border-color: rgba(100, 255, 180, 0.5);
+  background: rgba(80, 200, 140, 0.25);
+  box-shadow: 0 0 14px rgba(80, 220, 160, 0.2);
+}
+.body-btn {
+  font-size: 18px;
+  color: #7aecc0;
+}
+.body-cell.here {
+  border-color: rgba(255, 180, 100, 0.55);
+  box-shadow: 0 0 16px rgba(255, 140, 80, 0.25);
+  background: rgba(255, 140, 80, 0.12);
+}
+.body-char {
+  color: #ffb070;
+  font-size: 22px;
+  text-shadow: 0 0 12px rgba(255, 160, 80, 0.5);
+}
+.body-cell.exit {
+  border-color: rgba(255, 220, 100, 0.4);
+  border-style: dashed;
+}
+.body-exit {
+  color: #ffd86a;
+  font-size: 18px;
+}
+.body-alert {
+  text-align: center;
+  color: #ff9a7a;
+  letter-spacing: 0.12em;
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+.body-pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  position: relative;
+  z-index: 2;
+}
+.body-pad-mid { display: flex; gap: 48px; }
+.body-dir {
+  width: 64px;
+  height: 48px;
+  font-size: 20px;
+  border-radius: 12px;
+}
+.body-press {
+  width: 100%;
+  margin-top: 14px;
+  letter-spacing: 0.14em;
+  min-height: 52px;
+  border-radius: 12px;
+}
