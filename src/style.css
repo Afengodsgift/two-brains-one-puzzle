@@ -1069,3 +1069,255 @@ button.flash-cell:disabled { cursor: default; }
 .wt-theme { background: radial-gradient(ellipse at 50% 0%, rgba(255,80,80,.1), transparent 45%), radial-gradient(ellipse at 80% 100%, rgba(80,80,120,.1), transparent 40%), #0a0808; }
 .wt-theme .brand { color: #d08080; }
 .wt-adapt { text-align: center; color: #ff8f8f; letter-spacing: .14em; font-size: 12px; margin: 0 0 12px; animation: flash-in .5s ease; }
+
+/* ========== VISUAL OVERHAUL: scenes not spreadsheets ========== */
+.shell.game {
+  overflow-x: hidden;
+}
+.scene {
+  position: relative;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,.08);
+  padding: 16px 12px 20px;
+  margin: 8px 0 14px;
+  overflow: hidden;
+  z-index: 2;
+}
+.scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.04), transparent 40%);
+  z-index: 0;
+}
+.scene > * { position: relative; z-index: 1; }
+.scene-title {
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: .28em;
+  color: rgba(255,255,255,.35);
+  margin-bottom: 12px;
+}
+
+/* MIRROR — reflective chamber */
+.game:has(.grid) .topbar .brand { letter-spacing: .14em; }
+.mirror-scene {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 100%, rgba(140,180,220,.12), transparent 60%),
+    linear-gradient(180deg, #0c1018 0%, #080a10 100%);
+  box-shadow: inset 0 -40px 60px rgba(100,140,200,.06);
+}
+.mirror-scene .grid .cell {
+  border-radius: 14px;
+  border-color: rgba(180,210,255,.12);
+  background:
+    linear-gradient(145deg, rgba(200,220,255,.08), rgba(20,30,50,.4));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 4px 12px rgba(0,0,0,.25);
+}
+.mirror-scene .cell.filled span {
+  font-size: 28px;
+  filter: drop-shadow(0 0 10px rgba(180,210,255,.4));
+}
+.mirror-scene .cell.selected {
+  border-color: rgba(156,255,189,.6);
+  box-shadow: 0 0 0 1px rgba(156,255,189,.3), 0 0 28px rgba(156,255,189,.2);
+}
+
+/* ROTATION — mechanical dials (already stronger) — deepen stage */
+.rotation-theme .rot-stage {
+  background: radial-gradient(circle at 50% 40%, rgba(255,179,71,.06), transparent 55%);
+  border-radius: 24px;
+  padding: 8px;
+}
+
+/* SHADOW — lit stage */
+.shadow-theme .shadow-stage {
+  background:
+    radial-gradient(ellipse 100% 40% at 50% 0%, rgba(255,210,140,.15), transparent 50%),
+    rgba(0,0,0,.35);
+  border-radius: 24px;
+  padding: 20px 12px 12px;
+  border: 1px solid rgba(255,200,120,.1);
+}
+
+/* BLACK BOX — machine bay */
+.bb-theme .bb-slots {
+  background: linear-gradient(180deg, rgba(20,18,16,.9), rgba(10,10,12,.95));
+  border: 1px solid rgba(240,160,80,.2);
+  border-radius: 18px;
+  padding: 16px 12px;
+  box-shadow: inset 0 0 40px rgba(0,0,0,.5), 0 0 30px rgba(240,160,80,.05);
+}
+.bb-theme .bb-output {
+  min-height: 88px;
+  border-radius: 18px;
+  box-shadow: 0 0 40px rgba(78,205,196,.08);
+}
+.bb-theme .bb-token .bb-shape {
+  font-size: 28px;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+/* COLLISION — empty hall */
+.col-theme .col-grid {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(120,80,200,.08), transparent 70%),
+    rgba(0,0,0,.3);
+  border-radius: 20px;
+  padding: 12px;
+  border: 1px solid rgba(160,120,220,.12);
+  box-shadow: inset 0 0 50px rgba(0,0,0,.4);
+}
+.col-cell {
+  border-radius: 12px !important;
+  background: rgba(255,255,255,.02) !important;
+}
+.col-cell.wall {
+  background:
+    linear-gradient(135deg, rgba(60,40,100,.5), rgba(20,10,40,.9)) !important;
+  border-color: rgba(160,120,220,.4) !important;
+  box-shadow: 0 0 16px rgba(120,80,200,.15) !important;
+}
+.col-walker {
+  font-size: 24px !important;
+  animation: pulse 1.5s ease infinite;
+}
+.col-cell.goal {
+  background: radial-gradient(circle, rgba(255,200,100,.2), transparent 70%) !important;
+}
+
+/* ONE BODY — shared figure chamber */
+.body-theme .body-grid {
+  background:
+    radial-gradient(circle at 50% 60%, rgba(255,140,80,.1), transparent 55%),
+    rgba(0,0,0,.35);
+  border-radius: 20px;
+  padding: 12px;
+  border: 1px solid rgba(255,140,80,.12);
+}
+.body-char {
+  font-size: 28px !important;
+  animation: walk-bob 1s ease infinite alternate;
+}
+.body-cell.gate {
+  background:
+    repeating-linear-gradient(90deg, rgba(255,80,40,.15) 0 4px, transparent 4px 8px),
+    rgba(40,15,10,.8) !important;
+}
+.body-cell.btn-off, .body-cell.btn-on {
+  border-radius: 50% !important;
+}
+
+/* MAP — already scenic — deepen */
+.map-theme .walker-room {
+  box-shadow:
+    inset 0 0 60px rgba(40,80,120,.2),
+    0 8px 32px rgba(0,0,0,.4);
+}
+.walker-char {
+  width: 32px !important;
+  height: 44px !important;
+}
+
+/* DECAY — CRT terminal */
+.dy-theme {
+  background: #050308 !important;
+}
+.dy-code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace !important;
+  text-shadow: 0 0 20px rgba(240,180,200,.5);
+  border: 1px solid rgba(240,160,180,.2);
+  border-radius: 12px;
+  padding: 20px;
+  background: rgba(40,10,30,.5);
+  box-shadow: inset 0 0 40px rgba(200,80,120,.1);
+}
+.dy-keys .dy-key {
+  background: linear-gradient(180deg, rgba(60,30,50,.8), rgba(20,10,20,.9));
+  border-color: rgba(200,120,150,.25);
+}
+
+/* SEQUENCE — music deck */
+.sq-pad {
+  min-height: 72px !important;
+  border-radius: 20px !important;
+  background:
+    linear-gradient(160deg, rgba(140,100,255,.25), rgba(40,20,80,.6)) !important;
+  box-shadow: 0 6px 20px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.1) !important;
+}
+.sq-pad.lit {
+  transform: scale(1.05);
+}
+
+/* SWITCH / WATCHES — industrial bay */
+.sw-toggle {
+  background:
+    linear-gradient(180deg, rgba(50,45,40,.9), rgba(15,15,15,.95)) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06) !important;
+}
+.sw-toggle.on {
+  box-shadow: 0 0 28px rgba(255,160,40,.25), inset 0 0 20px rgba(255,160,40,.1) !important;
+}
+.sw-panel .sw-light {
+  border-radius: 14px !important;
+  background: linear-gradient(90deg, rgba(0,0,0,.5), rgba(20,20,25,.6)) !important;
+}
+
+/* GRAVITY — orbital field */
+.gv-theme .gv-grid {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(80,120,255,.1), transparent 60%),
+    rgba(0,0,0,.3);
+  border-radius: 50%;
+  padding: 16px;
+  border: 1px solid rgba(100,140,255,.15);
+  max-width: 300px;
+}
+.gv-cell.here {
+  box-shadow: 0 0 20px rgba(100,160,255,.4) !important;
+}
+
+/* FUTURE — radar */
+.fu-theme .fu-grid {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(80,160,255,.08), transparent 55%),
+    rgba(0,0,0,.35);
+  border-radius: 16px;
+  padding: 10px;
+  border: 1px solid rgba(80,160,255,.15);
+  box-shadow: inset 0 0 40px rgba(40,80,160,.15);
+}
+.fu-cell.spike {
+  animation: flash-pulse 0.4s ease infinite alternate;
+}
+
+/* LIAR — cracked truth */
+.liar-theme .grid .cell {
+  border-color: rgba(200,80,100,.15);
+}
+.liar-theme .eyebrow {
+  color: #a06070 !important;
+}
+
+/* Level select polish */
+.level-row {
+  border-radius: 16px !important;
+  padding: 16px 16px !important;
+  background: linear-gradient(135deg, rgba(255,255,255,.05), rgba(255,255,255,.02)) !important;
+}
+.level-row:not(.locked):active {
+  transform: scale(0.98);
+}
+.lvl-title { font-size: 14px !important; }
+
+/* Result screens */
+.win-panel {
+  background: linear-gradient(160deg, rgba(156,255,189,.08), rgba(255,255,255,.03)) !important;
+}
+.fail-panel {
+  background: linear-gradient(160deg, rgba(255,143,143,.08), rgba(255,255,255,.03)) !important;
+}
