@@ -152,6 +152,41 @@ const CHAPTERS = [
         unlocked: true
       }
     ]
+  },
+  {
+    id: "systems",
+    title: "CHAPTER IV",
+    subtitle: "SYSTEMS",
+    levels: [
+      {
+        id: "switch",
+        title: "THE SWITCH",
+        number: "09",
+        type: "switch",
+        tagline: "You flip. They see what breaks.",
+        completeLine: "You mapped the machine together.",
+        roles: { a: "HANDS", b: "PANEL" },
+        roleHint: {
+          HANDS: "Four switches. No labels. Flip them. You cannot see the effects.",
+          PANEL: "You see the status lights. You cannot touch the switches. Guide them."
+        },
+        unlocked: true
+      },
+      {
+        id: "liar",
+        title: "THE LIAR",
+        number: "10",
+        type: "liar",
+        tagline: "One of you is being lied to.",
+        completeLine: "You found the truth together.",
+        roles: { a: "GUIDE", b: "BUILDER" },
+        roleHint: {
+          GUIDE: "You see a target. It might be real. Or it might be a lie.",
+          BUILDER: "You place pieces. Your target sheet might be real. Or a lie."
+        },
+        unlocked: true
+      }
+    ]
   }
 ];
 
@@ -190,7 +225,7 @@ const state = {
   selectedLevelId: "mirror", puzzleRole: null, puzzle: null, remaining: ROUND_SECONDS,
   startedAt: 0, timerId: null, result: "", selectedId: null, elapsed: 0, countdown: 0,
   introLevel: null, flashPhase: "", flashReplayUsed: false, trayId: null,
-  mapAnimating: false, mapMsg: "", bbSelectedToken: null, bbPredictMode: false, bbPrediction: [], colMsg: "", bodyMsg: ""
+  mapAnimating: false, mapMsg: "", bbSelectedToken: null, bbPredictMode: false, bbPrediction: [], colMsg: "", bodyMsg: "", switchMsg: ""
 };
 
 function escapeHtml(v = "") {
@@ -649,6 +684,85 @@ function bodyButtonAt(puzzle, r, c) {
   return (puzzle.buttons || []).find((b) => b.r === r && b.c === c);
 }
 
+
+function generateSwitch(seed) {
+  const rand = seedRand(seed);
+  // 4 switches: door, alarm, lock, power — shuffled assignment
+  const effects = ["door", "alarm", "lock", "power"];
+  for (let i = effects.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [effects[i], effects[j]] = [effects[j], effects[i]];
+  }
+  const switches = effects.map((effect, i) => ({
+    id: "s" + i,
+    label: String(i + 1),
+    effect,
+    on: false
+  }));
+  return {
+    type: "switch",
+    switches,
+    // win: door on, lock on (unlocked), power on, alarm OFF
+  };
+}
+
+function switchStatus(puzzle) {
+  const st = { door: false, alarm: false, lock: false, power: false };
+  (puzzle.switches || []).forEach((s) => {
+    if (s.on) st[s.effect] = true;
+  });
+  return st;
+}
+
+function switchSolved(puzzle) {
+  const st = switchStatus(puzzle);
+  return st.door && st.lock && st.power && !st.alarm;
+}
+
+function generateLiar(seed) {
+  const rand = seedRand(seed);
+  const cells = [];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) cells.push([r, c]);
+  const shuffle = (arr) => {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+  const truePos = shuffle(cells).slice(0, 3);
+  let falsePos = shuffle(cells).slice(0, 3);
+  // ensure false differs
+  while (falsePos.every((p, i) => p[0] === truePos[i][0] && p[1] === truePos[i][1])) {
+    falsePos = shuffle(cells).slice(0, 3);
+  }
+  const symbols = ["●", "▲", "★"];
+  const trueTarget = symbols.map((sym, i) => ({ id: "o" + i, symbol: sym, r: truePos[i][0], c: truePos[i][1] }));
+  const falseTarget = symbols.map((sym, i) => ({ id: "o" + i, symbol: sym, r: falsePos[i][0], c: falsePos[i][1] }));
+  // place objects at random starts
+  const starts = shuffle(cells).slice(0, 3);
+  const objects = symbols.map((sym, i) => ({ id: "o" + i, symbol: sym, r: starts[i][0], c: starts[i][1] }));
+  const liarIsGuide = rand() < 0.5;
+  return {
+    type: "liar",
+    objects,
+    trueTarget,
+    falseTarget,
+    liarIsGuide,
+    selectedId: null
+  };
+}
+
+function liarSolved(puzzle) {
+  const byId = {};
+  puzzle.objects.forEach((o) => { byId[o.id] = o; });
+  return puzzle.trueTarget.every((t) => {
+    const cur = byId[t.id];
+    return cur && cur.r === t.r && cur.c === t.c;
+  });
+}
+
 function startLevelRound(mode) {
   const level = getLevel(state.selectedLevelId);
   if (!level || !level.type) return;
@@ -662,6 +776,8 @@ function startLevelRound(mode) {
   else if (level.type === "blackbox") board = generateBlackBox(seed);
   else if (level.type === "collision") board = generateCollision(seed);
   else if (level.type === "onebody") board = generateOneBody(seed);
+  else if (level.type === "switch") board = generateSwitch(seed);
+  else if (level.type === "liar") board = generateLiar(seed);
   else board = generateMirror(seed);
   const payload = {
     type: "start", from: state.playerId, levelId: level.id, puzzleType: level.type,
@@ -691,6 +807,7 @@ function applyStart(payload) {
   state.bbPrediction = [];
   state.colMsg = "";
   state.bodyMsg = "";
+  state.switchMsg = "";
   state.screen = "intro";
   render();
   setTimeout(() => {
@@ -994,7 +1111,70 @@ function renderGame() {
   const ss = String(state.remaining % 60).padStart(2, "0");
   const title = p.title || "PUZZLE";
 
-  if (p.type === "onebody") {
+  if (p.type === "switch") {
+    const isHands = state.puzzleRole === "HANDS";
+    const st = switchStatus(p);
+    if (isHands) {
+      const swHtml = (p.switches || []).map((s) =>
+        `<button type="button" class="sw-toggle ${s.on ? "on" : ""}" data-id="${s.id}"><span class="sw-num">${escapeHtml(s.label)}</span><span class="sw-state">${s.on ? "ON" : "OFF"}</span></button>`
+      ).join("");
+      app.innerHTML = `<main class="shell game sw-theme"><header class="topbar"><div class="brand">SWITCH · HANDS</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">No labels. Flip switches. Panel sees what happens.</p>
+        <div class="sw-row">${swHtml}</div>
+        <p class="microcopy">Talk. Find the safe combination.</p>
+      </main>`;
+      document.querySelectorAll(".sw-toggle").forEach((btn) => {
+        btn.onclick = () => switchFlip(btn.dataset.id);
+      });
+    } else {
+      app.innerHTML = `<main class="shell game sw-theme"><header class="topbar"><div class="brand">SWITCH · PANEL</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Status only. Guide Hands to: door open, lock open, power on, alarm off.</p>
+        <div class="sw-panel">
+          <div class="sw-light ${st.door ? "ok" : ""}"><span>DOOR</span><strong>${st.door ? "OPEN" : "SHUT"}</strong></div>
+          <div class="sw-light ${st.lock ? "ok" : ""}"><span>LOCK</span><strong>${st.lock ? "OPEN" : "LOCKED"}</strong></div>
+          <div class="sw-light ${st.power ? "ok" : ""}"><span>POWER</span><strong>${st.power ? "ON" : "OFF"}</strong></div>
+          <div class="sw-light ${st.alarm ? "bad" : "ok"}"><span>ALARM</span><strong>${st.alarm ? "ARMED" : "CLEAR"}</strong></div>
+        </div>
+        <p class="microcopy">Target: DOOR OPEN · LOCK OPEN · POWER ON · ALARM CLEAR</p>
+      </main>`;
+    }
+    return;
+  }
+
+  if (p.type === "liar") {
+    const isGuide = state.puzzleRole === "GUIDE";
+    const isLiar = (isGuide && p.liarIsGuide) || (!isGuide && !p.liarIsGuide);
+    const myTarget = isLiar ? p.falseTarget : p.trueTarget;
+    if (isGuide) {
+      app.innerHTML = `<main class="shell game liar-theme"><header class="topbar"><div class="brand">LIAR · GUIDE</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Your target may be true — or a lie. Compare with them.</p>
+        <span class="eyebrow">YOUR SHEET</span>
+        ${renderTargetMini(myTarget)}
+        <span class="eyebrow" style="margin-top:14px">BOARD</span>
+        ${renderMirrorBoard(p.objects, { asOperator: false, interactive: false })}
+        <p class="microcopy">If your sheet disagrees with theirs, one of you is the lie.</p>
+      </main>`;
+    } else {
+      app.innerHTML = `<main class="shell game liar-theme"><header class="topbar"><div class="brand">LIAR · BUILDER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Place pieces. Your sheet may be false. Trust nothing blindly.</p>
+        <span class="eyebrow">YOUR SHEET</span>
+        ${renderTargetMini(myTarget)}
+        <span class="eyebrow" style="margin-top:14px">BOARD</span>
+        ${renderMirrorBoard(p.objects, { asOperator: false, interactive: true })}
+        <div class="pad"><button class="pad-btn" data-dir="up">↑</button><div class="pad-mid"><button class="pad-btn" data-dir="left">←</button><button class="pad-btn" data-dir="right">→</button></div><button class="pad-btn" data-dir="down">↓</button></div>
+        <p class="microcopy">Win only if the board matches the real target.</p>
+      </main>`;
+      document.querySelectorAll(".cell:not([disabled])").forEach((btn) => {
+        btn.onclick = () => { state.selectedId = btn.dataset.id || null; render(); };
+      });
+      document.querySelectorAll(".pad-btn").forEach((btn) => {
+        btn.onclick = () => liarMove(btn.dataset.dir);
+      });
+    }
+    return;
+  }
+
+    if (p.type === "onebody") {
     const isLegs = state.puzzleRole === "LEGS";
     const size = p.size || 5;
     const gateSet = new Set();
@@ -1494,6 +1674,50 @@ function applyBodySync(payload) {
   render();
 }
 
+
+function switchFlip(id) {
+  if (!state.puzzle || state.puzzle.type !== "switch" || state.puzzleRole !== "HANDS") return;
+  const s = state.puzzle.switches.find((x) => x.id === id);
+  if (!s) return;
+  s.on = !s.on;
+  sendGame({ type: "switch_flip", from: state.playerId, switches: state.puzzle.switches });
+  if (switchSolved(state.puzzle)) endRound("win");
+  else render();
+}
+function applySwitchFlip(switches) {
+  if (!state.puzzle || state.puzzle.type !== "switch") return;
+  state.puzzle.switches = switches;
+  if (switchSolved(state.puzzle)) endRound("win");
+  else render();
+}
+
+function liarMove(dir) {
+  if (!state.puzzle || state.puzzle.type !== "liar" || state.puzzleRole !== "BUILDER") return;
+  if (!state.selectedId) return;
+  const obj = state.puzzle.objects.find((o) => o.id === state.selectedId);
+  if (!obj) return;
+  let nr = obj.r, nc = obj.c;
+  if (dir === "up") nr -= 1;
+  if (dir === "down") nr += 1;
+  if (dir === "left") nc -= 1;
+  if (dir === "right") nc += 1;
+  if (nr < 0 || nr >= 3 || nc < 0 || nc >= 3) return;
+  if (state.puzzle.objects.some((o) => o.id !== obj.id && o.r === nr && o.c === nc)) return;
+  obj.r = nr; obj.c = nc;
+  sendGame({ type: "liar_move", from: state.playerId, objects: state.puzzle.objects.map((o) => ({ id: o.id, r: o.r, c: o.c })) });
+  if (liarSolved(state.puzzle)) endRound("win");
+  else render();
+}
+function applyLiarMove(objects) {
+  if (!state.puzzle || state.puzzle.type !== "liar") return;
+  objects.forEach((u) => {
+    const o = state.puzzle.objects.find((x) => x.id === u.id);
+    if (o) { o.r = u.r; o.c = u.c; }
+  });
+  if (liarSolved(state.puzzle)) endRound("win");
+  else render();
+}
+
 function endRound(result) {
   if (state.screen === "result") return;
   clearInterval(state.timerId); state.timerId = null;
@@ -1570,6 +1794,8 @@ function handleGame(payload) {
   else if (payload.type === "col_move") applyColMove(payload);
   else if (payload.type === "col_bump") applyColBump(payload);
   else if (payload.type === "body_sync") applyBodySync(payload);
+  else if (payload.type === "switch_flip") applySwitchFlip(payload.switches);
+  else if (payload.type === "liar_move") applyLiarMove(payload.objects);
   else if (payload.type === "win") { if (payload.levelId) markComplete(payload.levelId); endRound("win"); }
   else if (payload.type === "timeout") endRound("timeout");
   else if (payload.type === "request_replay" && state.isHost) startLevelRound(payload.mode || "random");
