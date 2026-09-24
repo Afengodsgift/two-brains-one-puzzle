@@ -187,6 +187,104 @@ const CHAPTERS = [
         unlocked: true
       }
     ]
+  },
+  {
+    id: "time",
+    title: "CHAPTER V",
+    subtitle: "TIME",
+    levels: [
+      {
+        id: "future",
+        title: "FUTURE SIGHT",
+        number: "11",
+        type: "future",
+        tagline: "One sees what is coming. One lives now.",
+        completeLine: "You outran the future together.",
+        roles: { a: "ORACLE", b: "RUNNER" },
+        roleHint: {
+          ORACLE: "You see which cells will spike next. Guide them. You cannot move.",
+          RUNNER: "You move now. You cannot see the spikes until they hit."
+        },
+        unlocked: true
+      },
+      {
+        id: "decay",
+        title: "INFORMATION DECAY",
+        number: "12",
+        type: "decay",
+        tagline: "The truth has a half-life.",
+        completeLine: "You spoke before it faded.",
+        roles: { a: "HOLDER", b: "KEYPAD" },
+        roleHint: {
+          HOLDER: "You see the code. It decays. Say it before it dies.",
+          KEYPAD: "You never see the code. Enter what they tell you."
+        },
+        unlocked: true
+      },
+      {
+        id: "sequence",
+        title: "THE SEQUENCE",
+        number: "13",
+        type: "sequence",
+        tagline: "Heard once. Played back.",
+        completeLine: "The order was yours together.",
+        roles: { a: "CALLER", b: "PLAYER" },
+        roleHint: {
+          CALLER: "You see the pad order once. Guide them. One replay.",
+          PLAYER: "You press pads. You never see the sequence."
+        },
+        unlocked: true
+      }
+    ]
+  },
+  {
+    id: "creation",
+    title: "CHAPTER VI",
+    subtitle: "CREATION",
+    levels: [
+      {
+        id: "blueprint",
+        title: "THE BLUEPRINT",
+        number: "14",
+        type: "blueprint",
+        tagline: "One holds the plan. One holds the pieces.",
+        completeLine: "The structure stood.",
+        roles: { a: "ARCHITECT", b: "BUILDER" },
+        roleHint: {
+          ARCHITECT: "You see the blueprint forever. You cannot place pieces.",
+          BUILDER: "You place pieces. You never see the blueprint."
+        },
+        unlocked: true
+      },
+      {
+        id: "gravity",
+        title: "THE GRAVITY",
+        number: "15",
+        type: "gravity",
+        tagline: "One pulls the world. One walks it.",
+        completeLine: "You bent the fall together.",
+        roles: { a: "PULLER", b: "FALLER" },
+        roleHint: {
+          PULLER: "You set gravity direction. You cannot move the body.",
+          FALLER: "You move with gravity. You cannot change it."
+        },
+        unlocked: true
+      },
+      {
+        id: "watches",
+        title: "THE GAME WATCHES",
+        number: "16",
+        type: "watches",
+        tagline: "Repeat a mistake and the system adapts.",
+        completeLine: "You learned it was watching.",
+        roles: { a: "HANDS", b: "PANEL" },
+        roleHint: {
+          HANDS: "Four switches. Patterns that fail twice will shift.",
+          PANEL: "You see status. If the system adapts, warn them."
+        },
+        unlocked: true
+      }
+    ]
   }
 ];
 
@@ -225,7 +323,7 @@ const state = {
   selectedLevelId: "mirror", puzzleRole: null, puzzle: null, remaining: ROUND_SECONDS,
   startedAt: 0, timerId: null, result: "", selectedId: null, elapsed: 0, countdown: 0,
   introLevel: null, flashPhase: "", flashReplayUsed: false, trayId: null,
-  mapAnimating: false, mapMsg: "", bbSelectedToken: null, bbPredictMode: false, bbPrediction: [], colMsg: "", bodyMsg: "", switchMsg: ""
+  mapAnimating: false, mapMsg: "", bbSelectedToken: null, bbPredictMode: false, bbPrediction: [], colMsg: "", bodyMsg: "", switchMsg: "", futureTick: 0, decayLeft: 0, seqPhase: "", seqReplay: false, gravDir: 0, watchFails: []
 };
 
 function escapeHtml(v = "") {
@@ -763,6 +861,106 @@ function liarSolved(puzzle) {
   });
 }
 
+
+function generateFuture(seed) {
+  const rand = seedRand(seed);
+  const size = 4;
+  const start = { r: size - 1, c: 0 };
+  const goal = { r: 0, c: size - 1 };
+  // sequence of spike cells (length 12 cycling)
+  const spikes = [];
+  for (let i = 0; i < 12; i++) {
+    let r = Math.floor(rand() * size), c = Math.floor(rand() * size);
+    if ((r === start.r && c === start.c) || (r === goal.r && c === goal.c)) {
+      r = (r + 1) % size;
+    }
+    spikes.push({ r, c });
+  }
+  return { type: "future", size, pos: { ...start }, start, goal, spikes, spikeIndex: 0, activeSpike: null };
+}
+
+function generateDecay(seed) {
+  const rand = seedRand(seed);
+  const code = String(Math.floor(rand() * 9000) + 1000);
+  return { type: "decay", code, entry: "", decayMax: 12, revealed: true };
+}
+
+function generateSequence(seed) {
+  const rand = seedRand(seed);
+  const pads = ["A", "B", "C", "D"];
+  const seq = [];
+  for (let i = 0; i < 4; i++) seq.push(pads[Math.floor(rand() * 4)]);
+  return { type: "sequence", seq, input: [], showSeq: true };
+}
+
+function generateBlueprint(seed) {
+  const rand = seedRand(seed);
+  const cells = [];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) cells.push([r, c]);
+  const shuffle = (arr) => {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+  const symbols = ["●", "▲", "★", "■"];
+  const tpos = shuffle(cells).slice(0, 4);
+  const spos = shuffle(cells).slice(0, 4);
+  return {
+    type: "blueprint",
+    objects: symbols.map((sym, i) => ({ id: "o" + i, symbol: sym, r: spos[i][0], c: spos[i][1] })),
+    target: symbols.map((sym, i) => ({ id: "o" + i, symbol: sym, r: tpos[i][0], c: tpos[i][1] }))
+  };
+}
+
+function blueprintSolved(p) {
+  const byId = {};
+  p.objects.forEach((o) => { byId[o.id] = o; });
+  return p.target.every((t) => { const c = byId[t.id]; return c && c.r === t.r && c.c === t.c; });
+}
+
+function generateGravity(seed) {
+  const rand = seedRand(seed);
+  const size = 5;
+  const start = { r: 2, c: 2 };
+  const goal = { r: 0, c: 4 };
+  const walls = new Set();
+  for (let i = 0; i < 6; i++) {
+    const r = Math.floor(rand() * size), c = Math.floor(rand() * size);
+    if ((r === start.r && c === start.c) || (r === goal.r && c === goal.c)) continue;
+    walls.add(r + "," + c);
+  }
+  return { type: "gravity", size, pos: { ...start }, goal, walls: [...walls], gravDir: 0 }; // 0N 1E 2S 3W
+}
+
+function generateWatches(seed) {
+  const rand = seedRand(seed);
+  const effects = ["door", "alarm", "lock", "power"];
+  for (let i = effects.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [effects[i], effects[j]] = [effects[j], effects[i]];
+  }
+  return {
+    type: "watches",
+    switches: effects.map((effect, i) => ({ id: "s" + i, label: String(i + 1), effect, on: false })),
+    failPatterns: [],
+    adapted: false,
+    adaptMsg: ""
+  };
+}
+
+function watchesStatus(p) {
+  const st = { door: false, alarm: false, lock: false, power: false };
+  (p.switches || []).forEach((s) => { if (s.on) st[s.effect] = true; });
+  return st;
+}
+function watchesSolved(p) {
+  const st = watchesStatus(p);
+  return st.door && st.lock && st.power && !st.alarm;
+}
+
 function startLevelRound(mode) {
   const level = getLevel(state.selectedLevelId);
   if (!level || !level.type) return;
@@ -778,6 +976,12 @@ function startLevelRound(mode) {
   else if (level.type === "onebody") board = generateOneBody(seed);
   else if (level.type === "switch") board = generateSwitch(seed);
   else if (level.type === "liar") board = generateLiar(seed);
+  else if (level.type === "future") board = generateFuture(seed);
+  else if (level.type === "decay") board = generateDecay(seed);
+  else if (level.type === "sequence") board = generateSequence(seed);
+  else if (level.type === "blueprint") board = generateBlueprint(seed);
+  else if (level.type === "gravity") board = generateGravity(seed);
+  else if (level.type === "watches") board = generateWatches(seed);
   else board = generateMirror(seed);
   const payload = {
     type: "start", from: state.playerId, levelId: level.id, puzzleType: level.type,
@@ -808,6 +1012,10 @@ function applyStart(payload) {
   state.colMsg = "";
   state.bodyMsg = "";
   state.switchMsg = "";
+  state.futureTick = 0;
+  state.decayLeft = 0;
+  state.seqPhase = "";
+  state.seqReplay = false;
   state.screen = "intro";
   render();
   setTimeout(() => {
@@ -831,6 +1039,50 @@ function applyStart(payload) {
               render();
             }
           }, 4000);
+        } else if (state.puzzle && state.puzzle.type === "sequence") {
+          state.seqPhase = "show";
+          state.screen = "game";
+          render();
+          setTimeout(() => {
+            if (state.screen !== "game" || state.puzzle?.type !== "sequence") return;
+            if (state.seqPhase === "show") { state.seqPhase = "play"; render(); }
+          }, 3500);
+        } else if (state.puzzle && state.puzzle.type === "decay") {
+          state.decayLeft = state.puzzle.decayMax || 12;
+          state.screen = "game";
+          render();
+          const decayTick = () => {
+            if (state.screen !== "game" || state.puzzle?.type !== "decay") return;
+            state.decayLeft -= 1;
+            if (state.decayLeft <= 0) {
+              state.puzzle.revealed = false;
+              // new code
+              state.puzzle.code = String(1000 + Math.floor(Math.random() * 9000));
+              state.decayLeft = state.puzzle.decayMax || 12;
+              state.puzzle.revealed = true;
+              sendGame({ type: "decay_new", from: state.playerId, code: state.puzzle.code, decayLeft: state.decayLeft });
+            }
+            if (state.screen === "game") render();
+            if (state.screen === "game" && state.puzzle?.type === "decay") setTimeout(decayTick, 1000);
+          };
+          setTimeout(decayTick, 1000);
+        } else if (state.puzzle && state.puzzle.type === "future") {
+          state.screen = "game";
+          render();
+          const futTick = () => {
+            if (state.screen !== "game" || state.puzzle?.type !== "future") return;
+            const sp = state.puzzle.spikes[state.puzzle.spikeIndex % state.puzzle.spikes.length];
+            state.puzzle.activeSpike = sp;
+            state.puzzle.spikeIndex += 1;
+            if (state.puzzle.pos && sp && state.puzzle.pos.r === sp.r && state.puzzle.pos.c === sp.c) {
+              endRound("timeout");
+              return;
+            }
+            sendGame({ type: "future_tick", from: state.playerId, spikeIndex: state.puzzle.spikeIndex, activeSpike: sp, pos: state.puzzle.pos });
+            render();
+            if (state.screen === "game") setTimeout(futTick, 2000);
+          };
+          setTimeout(futTick, 1500);
         } else {
           state.screen = "game";
           render();
@@ -1170,6 +1422,183 @@ function renderGame() {
       document.querySelectorAll(".pad-btn").forEach((btn) => {
         btn.onclick = () => liarMove(btn.dataset.dir);
       });
+    }
+    return;
+  }
+
+    if (p.type === "future") {
+    const isOracle = state.puzzleRole === "ORACLE";
+    const size = p.size || 4;
+    const upcoming = [];
+    for (let i = 0; i < 3; i++) {
+      const sp = p.spikes[(p.spikeIndex + i) % p.spikes.length];
+      upcoming.push(sp);
+    }
+    let grid = `<div class="fu-grid" style="grid-template-columns:repeat(${size},1fr)">`;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const isPos = p.pos && p.pos.r === r && p.pos.c === c;
+        const isGoal = p.goal && p.goal.r === r && p.goal.c === c;
+        const isActive = p.activeSpike && p.activeSpike.r === r && p.activeSpike.c === c;
+        const futIdx = isOracle ? upcoming.findIndex((u) => u.r === r && u.c === c) : -1;
+        let cls = "fu-cell";
+        if (isPos) cls += " here";
+        if (isGoal) cls += " goal";
+        if (isActive) cls += " spike";
+        if (futIdx >= 0) cls += " next next-" + futIdx;
+        let inner = isPos ? "●" : isGoal ? "★" : isActive ? "⚡" : futIdx >= 0 ? String(futIdx + 1) : "";
+        grid += `<div class="${cls}">${inner}</div>`;
+      }
+    }
+    grid += `</div>`;
+    if (isOracle) {
+      app.innerHTML = `<main class="shell game fu-theme"><header class="topbar"><div class="brand">FUTURE · ORACLE</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Numbers = spikes coming. ⚡ is live. Guide Runner to ★.</p>${grid}
+        <p class="microcopy">1 = next spike · 2 · 3</p></main>`;
+    } else {
+      app.innerHTML = `<main class="shell game fu-theme"><header class="topbar"><div class="brand">FUTURE · RUNNER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Move. Spikes hit hard. Oracle sees them coming.</p>${grid}
+        <div class="col-pad"><button class="btn col-dir" data-dir="n">↑</button><div class="col-pad-mid"><button class="btn col-dir" data-dir="w">←</button><button class="btn col-dir" data-dir="e">→</button></div><button class="btn col-dir" data-dir="s">↓</button></div></main>`;
+      document.querySelectorAll(".col-dir").forEach((b) => { b.onclick = () => futureMove(b.dataset.dir); });
+    }
+    return;
+  }
+
+  if (p.type === "decay") {
+    const isHolder = state.puzzleRole === "HOLDER";
+    if (isHolder) {
+      app.innerHTML = `<main class="shell game dy-theme"><header class="topbar"><div class="brand">DECAY · HOLDER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Tell them the code before it dies.</p>
+        <div class="dy-code">${p.revealed ? escapeHtml(p.code) : "····"}</div>
+        <div class="dy-bar"><div class="dy-fill" style="width:${Math.max(0, (state.decayLeft / (p.decayMax || 12)) * 100)}%"></div></div>
+        <p class="microcopy">Decays in ${state.decayLeft}s — then a new code.</p></main>`;
+    } else {
+      app.innerHTML = `<main class="shell game dy-theme"><header class="topbar"><div class="brand">DECAY · KEYPAD</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Enter the code they give you.</p>
+        <div class="dy-entry">${escapeHtml(p.entry || "————")}</div>
+        <div class="dy-keys">${[1,2,3,4,5,6,7,8,9,"C",0,"OK"].map((k) => `<button class="btn dy-key" data-k="${k}">${k}</button>`).join("")}</div></main>`;
+      document.querySelectorAll(".dy-key").forEach((b) => { b.onclick = () => decayKey(b.dataset.k); });
+    }
+    return;
+  }
+
+  if (p.type === "sequence") {
+    const isCaller = state.puzzleRole === "CALLER";
+    const phase = state.seqPhase || "play";
+    if (phase === "show" && isCaller) {
+      app.innerHTML = `<main class="shell game sq-theme"><header class="topbar"><div class="brand">SEQUENCE · CALLER</div><div class="timer">${mm}:${ss}</div></header>
+        <p class="role-hint flash-warn">MEMORIZE ORDER</p>
+        <div class="sq-show">${(p.seq || []).map((x) => `<span class="sq-pad lit">${escapeHtml(x)}</span>`).join("")}</div></main>`;
+      return;
+    }
+    if (phase === "show" && !isCaller) {
+      app.innerHTML = `<main class="shell game sq-theme"><header class="topbar"><div class="brand">SEQUENCE · PLAYER</div><div class="timer">${mm}:${ss}</div></header><p class="role-hint">Sequence loading…</p></main>`;
+      return;
+    }
+    if (isCaller) {
+      app.innerHTML = `<main class="shell game sq-theme"><header class="topbar"><div class="brand">SEQUENCE · CALLER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Guide them. Order is hidden from them.</p>
+        <div class="sq-show dim">${(p.seq || []).map((x) => `<span class="sq-pad">${escapeHtml(x)}</span>`).join("")}</div>
+        ${!state.seqReplay ? `<button class="btn" id="seqReplay">REPLAY (−8s)</button>` : `<p class="microcopy">Replay used.</p>`}
+        <p class="microcopy">They have pressed: ${(p.input || []).join(" ") || "—"}</p></main>`;
+      const rb = document.getElementById("seqReplay");
+      if (rb) rb.onclick = () => seqReplay();
+    } else {
+      app.innerHTML = `<main class="shell game sq-theme"><header class="topbar"><div class="brand">SEQUENCE · PLAYER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Press pads in the order they say.</p>
+        <div class="sq-row">${["A","B","C","D"].map((x) => `<button class="btn sq-pad" data-p="${x}">${x}</button>`).join("")}</div>
+        <p class="microcopy">Input: ${(p.input || []).join(" ") || "—"}</p></main>`;
+      document.querySelectorAll(".sq-pad").forEach((b) => { b.onclick = () => seqPress(b.dataset.p); });
+    }
+    return;
+  }
+
+  if (p.type === "blueprint") {
+    const isArch = state.puzzleRole === "ARCHITECT";
+    if (isArch) {
+      app.innerHTML = `<main class="shell game bp-theme"><header class="topbar"><div class="brand">BLUEPRINT · ARCHITECT</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">This is the plan. Guide the builder. You cannot place.</p>
+        <span class="eyebrow">BLUEPRINT</span>${renderTargetMini(p.target)}
+        <span class="eyebrow" style="margin-top:14px">LIVE</span>${renderMirrorBoard(p.objects, { interactive: false })}
+      </main>`;
+    } else {
+      app.innerHTML = `<main class="shell game bp-theme"><header class="topbar"><div class="brand">BLUEPRINT · BUILDER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Place pieces. You never see the blueprint.</p>
+        ${renderMirrorBoard(p.objects, { interactive: true })}
+        <div class="pad"><button class="pad-btn" data-dir="up">↑</button><div class="pad-mid"><button class="pad-btn" data-dir="left">←</button><button class="pad-btn" data-dir="right">→</button></div><button class="pad-btn" data-dir="down">↓</button></div>
+      </main>`;
+      document.querySelectorAll(".cell:not([disabled])").forEach((btn) => {
+        btn.onclick = () => { state.selectedId = btn.dataset.id || null; render(); };
+      });
+      document.querySelectorAll(".pad-btn").forEach((btn) => {
+        btn.onclick = () => bpMove(btn.dataset.dir);
+      });
+    }
+    return;
+  }
+
+  if (p.type === "gravity") {
+    const isPuller = state.puzzleRole === "PULLER";
+    const size = p.size || 5;
+    const walls = new Set(p.walls || []);
+    const gdir = p.gravDir || 0;
+    const arrows = ["↑", "→", "↓", "←"];
+    let grid = `<div class="gv-grid" style="grid-template-columns:repeat(${size},1fr)">`;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const isPos = p.pos && p.pos.r === r && p.pos.c === c;
+        const isGoal = p.goal && p.goal.r === r && p.goal.c === c;
+        const isWall = walls.has(r + "," + c);
+        let cls = "gv-cell";
+        if (isWall) cls += " wall";
+        if (isPos) cls += " here";
+        if (isGoal) cls += " goal";
+        let inner = isPos ? "●" : isGoal ? "★" : isWall ? "■" : "";
+        grid += `<div class="${cls}">${inner}</div>`;
+      }
+    }
+    grid += `</div>`;
+    if (isPuller) {
+      app.innerHTML = `<main class="shell game gv-theme"><header class="topbar"><div class="brand">GRAVITY · PULLER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Set gravity. Faller can only step with the pull or sideways.</p>
+        <p class="gv-dir">GRAVITY ${arrows[gdir]}</p>${grid}
+        <div class="gv-dirs">${[0,1,2,3].map((d) => `<button class="btn gv-d ${gdir===d?"primary":""}" data-d="${d}">${arrows[d]}</button>`).join("")}</div>
+      </main>`;
+      document.querySelectorAll(".gv-d").forEach((b) => { b.onclick = () => gravSet(+b.dataset.d); });
+    } else {
+      app.innerHTML = `<main class="shell game gv-theme"><header class="topbar"><div class="brand">GRAVITY · FALLER</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Move with gravity ${arrows[gdir]} or sideways. Reach ★.</p>
+        <p class="gv-dir">PULL ${arrows[gdir]}</p>${grid}
+        <div class="col-pad"><button class="btn col-dir" data-dir="n">↑</button><div class="col-pad-mid"><button class="btn col-dir" data-dir="w">←</button><button class="btn col-dir" data-dir="e">→</button></div><button class="btn col-dir" data-dir="s">↓</button></div>
+      </main>`;
+      document.querySelectorAll(".col-dir").forEach((b) => { b.onclick = () => gravMove(b.dataset.dir); });
+    }
+    return;
+  }
+
+  if (p.type === "watches") {
+    const isHands = state.puzzleRole === "HANDS";
+    const st = watchesStatus(p);
+    if (isHands) {
+      const swHtml = (p.switches || []).map((s) =>
+        `<button type="button" class="sw-toggle ${s.on ? "on" : ""}" data-id="${s.id}"><span class="sw-num">${escapeHtml(s.label)}</span><span class="sw-state">${s.on ? "ON" : "OFF"}</span></button>`
+      ).join("");
+      app.innerHTML = `<main class="shell game wt-theme"><header class="topbar"><div class="brand">WATCHES · HANDS</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Fail the same pattern twice and the machine remaps.</p>
+        ${p.adaptMsg ? `<p class="wt-adapt">${escapeHtml(p.adaptMsg)}</p>` : ""}
+        <div class="sw-row">${swHtml}</div></main>`;
+      document.querySelectorAll(".sw-toggle").forEach((btn) => { btn.onclick = () => watchesFlip(btn.dataset.id); });
+    } else {
+      app.innerHTML = `<main class="shell game wt-theme"><header class="topbar"><div class="brand">WATCHES · PANEL</div><div class="timer ${state.remaining <= 15 ? "urgent" : ""}">${mm}:${ss}</div></header>
+        <p class="role-hint">Status board. If SYSTEM ADAPTS, the mapping changed.</p>
+        ${p.adaptMsg ? `<p class="wt-adapt">${escapeHtml(p.adaptMsg)}</p>` : ""}
+        <div class="sw-panel">
+          <div class="sw-light ${st.door ? "ok" : ""}"><span>DOOR</span><strong>${st.door ? "OPEN" : "SHUT"}</strong></div>
+          <div class="sw-light ${st.lock ? "ok" : ""}"><span>LOCK</span><strong>${st.lock ? "OPEN" : "LOCKED"}</strong></div>
+          <div class="sw-light ${st.power ? "ok" : ""}"><span>POWER</span><strong>${st.power ? "ON" : "OFF"}</strong></div>
+          <div class="sw-light ${st.alarm ? "bad" : "ok"}"><span>ALARM</span><strong>${st.alarm ? "ARMED" : "CLEAR"}</strong></div>
+        </div>
+        <p class="microcopy">Target: DOOR+LOCK+POWER on, ALARM clear</p></main>`;
     }
     return;
   }
@@ -1718,6 +2147,207 @@ function applyLiarMove(objects) {
   else render();
 }
 
+
+function futureMove(dir) {
+  if (!state.puzzle || state.puzzle.type !== "future" || state.puzzleRole !== "RUNNER") return;
+  const d = { n: [-1,0], s: [1,0], w: [0,-1], e: [0,1] }[dir];
+  if (!d) return;
+  const size = state.puzzle.size || 4;
+  const nr = state.puzzle.pos.r + d[0], nc = state.puzzle.pos.c + d[1];
+  if (nr < 0 || nr >= size || nc < 0 || nc >= size) return;
+  state.puzzle.pos = { r: nr, c: nc };
+  if (state.puzzle.activeSpike && state.puzzle.activeSpike.r === nr && state.puzzle.activeSpike.c === nc) {
+    sendGame({ type: "future_move", from: state.playerId, pos: state.puzzle.pos });
+    endRound("timeout");
+    return;
+  }
+  sendGame({ type: "future_move", from: state.playerId, pos: state.puzzle.pos });
+  if (state.puzzle.goal && nr === state.puzzle.goal.r && nc === state.puzzle.goal.c) endRound("win");
+  else render();
+}
+function applyFutureMove(payload) {
+  if (!state.puzzle || state.puzzle.type !== "future") return;
+  if (payload.pos) state.puzzle.pos = payload.pos;
+  if (state.puzzle.goal && state.puzzle.pos.r === state.puzzle.goal.r && state.puzzle.pos.c === state.puzzle.goal.c) endRound("win");
+  else render();
+}
+function applyFutureTick(payload) {
+  if (!state.puzzle || state.puzzle.type !== "future") return;
+  if (payload.spikeIndex != null) state.puzzle.spikeIndex = payload.spikeIndex;
+  if (payload.activeSpike) state.puzzle.activeSpike = payload.activeSpike;
+  if (payload.pos) state.puzzle.pos = payload.pos;
+  if (state.puzzle.activeSpike && state.puzzle.pos &&
+      state.puzzle.activeSpike.r === state.puzzle.pos.r && state.puzzle.activeSpike.c === state.puzzle.pos.c) {
+    endRound("timeout");
+    return;
+  }
+  render();
+}
+
+function decayKey(k) {
+  if (!state.puzzle || state.puzzle.type !== "decay" || state.puzzleRole !== "KEYPAD") return;
+  if (k === "C") state.puzzle.entry = "";
+  else if (k === "OK") {
+    if (state.puzzle.entry === state.puzzle.code) { endRound("win"); return; }
+    state.puzzle.entry = "";
+  } else if ((state.puzzle.entry || "").length < 4) {
+    state.puzzle.entry = (state.puzzle.entry || "") + k;
+  }
+  sendGame({ type: "decay_entry", from: state.playerId, entry: state.puzzle.entry });
+  render();
+}
+function applyDecayEntry(payload) {
+  if (!state.puzzle || state.puzzle.type !== "decay") return;
+  state.puzzle.entry = payload.entry || "";
+  if (state.puzzle.entry === state.puzzle.code) endRound("win");
+  else render();
+}
+function applyDecayNew(payload) {
+  if (!state.puzzle || state.puzzle.type !== "decay") return;
+  state.puzzle.code = payload.code;
+  state.decayLeft = payload.decayLeft;
+  state.puzzle.revealed = true;
+  state.puzzle.entry = "";
+  render();
+}
+
+function seqPress(p) {
+  if (!state.puzzle || state.puzzle.type !== "sequence" || state.puzzleRole !== "PLAYER") return;
+  if (state.seqPhase === "show") return;
+  state.puzzle.input = (state.puzzle.input || []).concat([p]);
+  sendGame({ type: "seq_input", from: state.playerId, input: state.puzzle.input });
+  const seq = state.puzzle.seq || [];
+  const input = state.puzzle.input;
+  if (input.length >= seq.length) {
+    if (input.join() === seq.join()) endRound("win");
+    else { state.puzzle.input = []; sendGame({ type: "seq_input", from: state.playerId, input: [] }); }
+  }
+  render();
+}
+function applySeqInput(payload) {
+  if (!state.puzzle || state.puzzle.type !== "sequence") return;
+  state.puzzle.input = payload.input || [];
+  const seq = state.puzzle.seq || [];
+  if (state.puzzle.input.length >= seq.length && state.puzzle.input.join() === seq.join()) endRound("win");
+  else render();
+}
+function seqReplay() {
+  if (state.puzzleRole !== "CALLER" || state.seqReplay) return;
+  state.seqReplay = true;
+  state.startedAt -= 8000;
+  state.seqPhase = "show";
+  sendGame({ type: "seq_replay", from: state.playerId });
+  render();
+  setTimeout(() => {
+    if (state.puzzle?.type === "sequence") { state.seqPhase = "play"; render(); }
+  }, 2500);
+}
+function applySeqReplay() {
+  if (!state.puzzle || state.puzzle.type !== "sequence") return;
+  state.seqReplay = true;
+  state.startedAt -= 8000;
+  state.seqPhase = "show";
+  render();
+  setTimeout(() => {
+    if (state.puzzle?.type === "sequence") { state.seqPhase = "play"; render(); }
+  }, 2500);
+}
+
+function bpMove(dir) {
+  if (!state.puzzle || state.puzzle.type !== "blueprint" || state.puzzleRole !== "BUILDER") return;
+  if (!state.selectedId) return;
+  const obj = state.puzzle.objects.find((o) => o.id === state.selectedId);
+  if (!obj) return;
+  let nr = obj.r, nc = obj.c;
+  if (dir === "up") nr--; if (dir === "down") nr++; if (dir === "left") nc--; if (dir === "right") nc++;
+  if (nr < 0 || nr > 2 || nc < 0 || nc > 2) return;
+  if (state.puzzle.objects.some((o) => o.id !== obj.id && o.r === nr && o.c === nc)) return;
+  obj.r = nr; obj.c = nc;
+  sendGame({ type: "bp_move", from: state.playerId, objects: state.puzzle.objects.map((o) => ({ id: o.id, r: o.r, c: o.c })) });
+  if (blueprintSolved(state.puzzle)) endRound("win");
+  else render();
+}
+function applyBpMove(objects) {
+  if (!state.puzzle || state.puzzle.type !== "blueprint") return;
+  objects.forEach((u) => {
+    const o = state.puzzle.objects.find((x) => x.id === u.id);
+    if (o) { o.r = u.r; o.c = u.c; }
+  });
+  if (blueprintSolved(state.puzzle)) endRound("win");
+  else render();
+}
+
+function gravSet(d) {
+  if (!state.puzzle || state.puzzle.type !== "gravity" || state.puzzleRole !== "PULLER") return;
+  state.puzzle.gravDir = d;
+  sendGame({ type: "grav_sync", from: state.playerId, gravDir: d, pos: state.puzzle.pos });
+  render();
+}
+function gravMove(dir) {
+  if (!state.puzzle || state.puzzle.type !== "gravity" || state.puzzleRole !== "FALLER") return;
+  const map = { n: 0, e: 1, s: 2, w: 3 };
+  const want = map[dir];
+  const g = state.puzzle.gravDir || 0;
+  // allow gravity direction or perpendicular (g+/-1)
+  const ok = want === g || want === (g + 1) % 4 || want === (g + 3) % 4;
+  if (!ok) return;
+  const d = { n: [-1,0], s: [1,0], w: [0,-1], e: [0,1] }[dir];
+  const size = state.puzzle.size || 5;
+  const nr = state.puzzle.pos.r + d[0], nc = state.puzzle.pos.c + d[1];
+  if (nr < 0 || nr >= size || nc < 0 || nc >= size) return;
+  if ((state.puzzle.walls || []).includes(nr + "," + nc)) return;
+  state.puzzle.pos = { r: nr, c: nc };
+  sendGame({ type: "grav_sync", from: state.playerId, gravDir: state.puzzle.gravDir, pos: state.puzzle.pos });
+  if (state.puzzle.goal && nr === state.puzzle.goal.r && nc === state.puzzle.goal.c) endRound("win");
+  else render();
+}
+function applyGravSync(payload) {
+  if (!state.puzzle || state.puzzle.type !== "gravity") return;
+  if (payload.gravDir != null) state.puzzle.gravDir = payload.gravDir;
+  if (payload.pos) state.puzzle.pos = payload.pos;
+  if (state.puzzle.goal && state.puzzle.pos.r === state.puzzle.goal.r && state.puzzle.pos.c === state.puzzle.goal.c) endRound("win");
+  else render();
+}
+
+function watchesFlip(id) {
+  if (!state.puzzle || state.puzzle.type !== "watches" || state.puzzleRole !== "HANDS") return;
+  const s = state.puzzle.switches.find((x) => x.id === id);
+  if (!s) return;
+  s.on = !s.on;
+  // pattern of on switches
+  const pattern = state.puzzle.switches.map((x) => (x.on ? "1" : "0")).join("");
+  if (!watchesSolved(state.puzzle)) {
+    const fails = state.puzzle.failPatterns || [];
+    const count = fails.filter((f) => f === pattern).length;
+    if (count >= 1) {
+      // adapt: reshuffle effects
+      const effects = state.puzzle.switches.map((x) => x.effect);
+      for (let i = effects.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [effects[i], effects[j]] = [effects[j], effects[i]];
+      }
+      state.puzzle.switches.forEach((sw, i) => { sw.effect = effects[i]; sw.on = false; });
+      state.puzzle.failPatterns = [];
+      state.puzzle.adapted = true;
+      state.puzzle.adaptMsg = "SYSTEM ADAPTED — mapping changed";
+    } else {
+      state.puzzle.failPatterns = fails.concat([pattern]);
+      state.puzzle.adaptMsg = "";
+    }
+  }
+  sendGame({ type: "watches_sync", from: state.playerId, switches: state.puzzle.switches, failPatterns: state.puzzle.failPatterns, adaptMsg: state.puzzle.adaptMsg });
+  if (watchesSolved(state.puzzle)) endRound("win");
+  else render();
+}
+function applyWatchesSync(payload) {
+  if (!state.puzzle || state.puzzle.type !== "watches") return;
+  if (payload.switches) state.puzzle.switches = payload.switches;
+  if (payload.failPatterns) state.puzzle.failPatterns = payload.failPatterns;
+  state.puzzle.adaptMsg = payload.adaptMsg || "";
+  if (watchesSolved(state.puzzle)) endRound("win");
+  else render();
+}
+
 function endRound(result) {
   if (state.screen === "result") return;
   clearInterval(state.timerId); state.timerId = null;
@@ -1796,6 +2426,15 @@ function handleGame(payload) {
   else if (payload.type === "body_sync") applyBodySync(payload);
   else if (payload.type === "switch_flip") applySwitchFlip(payload.switches);
   else if (payload.type === "liar_move") applyLiarMove(payload.objects);
+  else if (payload.type === "future_move") applyFutureMove(payload);
+  else if (payload.type === "future_tick") applyFutureTick(payload);
+  else if (payload.type === "decay_entry") applyDecayEntry(payload);
+  else if (payload.type === "decay_new") applyDecayNew(payload);
+  else if (payload.type === "seq_input") applySeqInput(payload);
+  else if (payload.type === "seq_replay") applySeqReplay();
+  else if (payload.type === "bp_move") applyBpMove(payload.objects);
+  else if (payload.type === "grav_sync") applyGravSync(payload);
+  else if (payload.type === "watches_sync") applyWatchesSync(payload);
   else if (payload.type === "win") { if (payload.levelId) markComplete(payload.levelId); endRound("win"); }
   else if (payload.type === "timeout") endRound("timeout");
   else if (payload.type === "request_replay" && state.isHost) startLevelRound(payload.mode || "random");
